@@ -135,6 +135,26 @@ Schema (per task entry):
 - Register the benchmark in `src/benchflow/task_download.py` so users can
   `ensure_tasks("<name>")`.
 
+## Mirror ownership and review
+
+The HuggingFace mirror at `benchflow/benchmarks` and the GitHub mirror at
+`benchflow-ai/benchmarks` are both shared across many adapters. Each
+adapter **owns exactly one subtree**:
+
+- HuggingFace: `benchmarks/<name>/`
+- GitHub: `datasets/<name>/`
+
+An adapter's publish script (e.g. `_scripts/publish_hf.py`) must refuse to
+write outside its own subtree. Top-level files (the dataset README, root
+`benchmark.yaml` index) are shared; updating them requires a separate,
+explicitly-flagged PR.
+
+**PR by default.** Adapter publish scripts open a HuggingFace PR
+(Discussion) by default, not a direct push to `main`. Direct pushes are
+gated behind an explicit `--direct` flag and reserved for trusted
+automation. This keeps two adapters from silently overwriting each other
+when run with the same shared token.
+
 ## Honesty rules
 
 - Do not call something parity-validated if you only ran one side.

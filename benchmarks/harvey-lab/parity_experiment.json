@@ -1,0 +1,518 @@
+{
+  "experiment": "agent-runs-parity",
+  "benchmark": "harvey-lab",
+  "judge_model": "gemini-3.1-flash-lite-preview",
+  "agent_model": "gemini-3.1-flash-lite-preview",
+  "runs_per_side": 1,
+  "matching_criterion": "max(A) >= min(B) AND max(B) >= min(A)",
+  "generated_at": "2026-05-06T23:33:58.296759+00:00",
+  "benchflow_branch": "feat/dataset-adapters",
+  "benchflow_commit": "b917c6ae6e2af3cbca085caa2f7e6a306b5860b6",
+  "harvey_commit": "b917c6ae6e2af3cbca085caa2f7e6a306b5860b6",
+  "task_count": 7,
+  "mode": "agent-runs",
+  "summary": {
+    "all-pass-reward": {
+      "matched": 7,
+      "total": 7
+    },
+    "criterion-pass-rate": {
+      "matched": 3,
+      "total": 7
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "trusts-estates-private-client/compare-trust-documents-against-client-instructions",
+      "n_criteria": 23,
+      "runs": [
+        {
+          "run": 1,
+          "agent_files": [
+            "deviation-report.md"
+          ],
+          "agent_seconds": 6.3278210163116455,
+          "side_A_original": {
+            "n": 23,
+            "n_pass": 4,
+            "criterion_pass_rate": 0.17391304347826086,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 23,
+            "n_pass": 4,
+            "criterion_pass_rate": 0.17391304347826086,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        },
+        {
+          "run": 2,
+          "agent_files": [
+            "deviation-report.md"
+          ],
+          "agent_seconds": 5.290319919586182,
+          "side_A_original": {
+            "n": 23,
+            "n_pass": 4,
+            "criterion_pass_rate": 0.17391304347826086,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 23,
+            "n_pass": 4,
+            "criterion_pass_rate": 0.17391304347826086,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        },
+        {
+          "run": 3,
+          "agent_files": [
+            "deviation-report.md"
+          ],
+          "agent_seconds": 5.730899095535278,
+          "side_A_original": {
+            "n": 23,
+            "n_pass": 4,
+            "criterion_pass_rate": 0.17391304347826086,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 23,
+            "n_pass": 4,
+            "criterion_pass_rate": 0.17391304347826086,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        }
+      ],
+      "metrics": [
+        {
+          "metric": "all-pass-reward",
+          "side_A_original_runs": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "side_B_adapter_runs": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "side_A_summary": "0.000 \u00b1 0.000",
+          "side_B_summary": "0.000 \u00b1 0.000",
+          "match": true
+        },
+        {
+          "metric": "criterion-pass-rate",
+          "side_A_original_runs": [
+            0.17391304347826086,
+            0.17391304347826086,
+            0.17391304347826086
+          ],
+          "side_B_adapter_runs": [
+            0.17391304347826086,
+            0.17391304347826086,
+            0.17391304347826086
+          ],
+          "side_A_summary": "0.174 \u00b1 0.000",
+          "side_B_summary": "0.174 \u00b1 0.000",
+          "match": true
+        }
+      ]
+    },
+    {
+      "task_id": "employment-labor/identify-issues-in-counterparty-motion-brief",
+      "n_criteria": 23,
+      "runs": [
+        {
+          "run": 1,
+          "agent_files": [
+            "issue-identification-memo.docx"
+          ],
+          "agent_seconds": 5.278486967086792,
+          "side_A_original": {
+            "n": 23,
+            "n_pass": 5,
+            "criterion_pass_rate": 0.21739130434782608,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 23,
+            "n_pass": 6,
+            "criterion_pass_rate": 0.2608695652173913,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        },
+        {
+          "run": 2,
+          "agent_files": [
+            "issue-identification-memo.docx"
+          ],
+          "agent_seconds": 5.078680992126465,
+          "side_A_original": {
+            "n": 23,
+            "n_pass": 5,
+            "criterion_pass_rate": 0.21739130434782608,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 23,
+            "n_pass": 6,
+            "criterion_pass_rate": 0.2608695652173913,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        },
+        {
+          "run": 3,
+          "agent_files": [
+            "issue-identification-memo.docx"
+          ],
+          "agent_seconds": 5.306580066680908,
+          "side_A_original": {
+            "n": 23,
+            "n_pass": 3,
+            "criterion_pass_rate": 0.13043478260869565,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 23,
+            "n_pass": 3,
+            "criterion_pass_rate": 0.13043478260869565,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        }
+      ],
+      "metrics": [
+        {
+          "metric": "all-pass-reward",
+          "side_A_original_runs": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "side_B_adapter_runs": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "side_A_summary": "0.000 \u00b1 0.000",
+          "side_B_summary": "0.000 \u00b1 0.000",
+          "match": true
+        },
+        {
+          "metric": "criterion-pass-rate",
+          "side_A_original_runs": [
+            0.21739130434782608,
+            0.21739130434782608,
+            0.13043478260869565
+          ],
+          "side_B_adapter_runs": [
+            0.2608695652173913,
+            0.2608695652173913,
+            0.13043478260869565
+          ],
+          "side_A_summary": "0.188 \u00b1 0.029",
+          "side_B_summary": "0.217 \u00b1 0.043",
+          "match": true
+        }
+      ]
+    },
+    {
+      "task_id": "corporate-ma/analyze-cim-deal-teaser/scenario-01",
+      "n_criteria": 39,
+      "runs": [
+        {
+          "run": 1,
+          "agent_files": [
+            "buy-side-cim-analysis-memo.docx"
+          ],
+          "agent_seconds": 6.026067018508911,
+          "side_A_original": {
+            "n": 39,
+            "n_pass": 8,
+            "criterion_pass_rate": 0.20512820512820512,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 39,
+            "n_pass": 10,
+            "criterion_pass_rate": 0.2564102564102564,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        }
+      ],
+      "metrics": [
+        {
+          "metric": "all-pass-reward",
+          "side_A_original_runs": [
+            0.0
+          ],
+          "side_B_adapter_runs": [
+            0.0
+          ],
+          "side_A_summary": "0.000 (n=1)",
+          "side_B_summary": "0.000 (n=1)",
+          "match": true
+        },
+        {
+          "metric": "criterion-pass-rate",
+          "side_A_original_runs": [
+            0.20512820512820512
+          ],
+          "side_B_adapter_runs": [
+            0.2564102564102564
+          ],
+          "side_A_summary": "0.205 (n=1)",
+          "side_B_summary": "0.256 (n=1)",
+          "match": false
+        }
+      ]
+    },
+    {
+      "task_id": "insurance/compare-reinsurance-treaty-against-underlying-policy",
+      "n_criteria": 39,
+      "runs": [
+        {
+          "run": 1,
+          "agent_files": [
+            "gap-analysis-memo.md"
+          ],
+          "agent_seconds": 5.404587030410767,
+          "side_A_original": {
+            "n": 39,
+            "n_pass": 1,
+            "criterion_pass_rate": 0.02564102564102564,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 39,
+            "n_pass": 1,
+            "criterion_pass_rate": 0.02564102564102564,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        }
+      ],
+      "metrics": [
+        {
+          "metric": "all-pass-reward",
+          "side_A_original_runs": [
+            0.0
+          ],
+          "side_B_adapter_runs": [
+            0.0
+          ],
+          "side_A_summary": "0.000 (n=1)",
+          "side_B_summary": "0.000 (n=1)",
+          "match": true
+        },
+        {
+          "metric": "criterion-pass-rate",
+          "side_A_original_runs": [
+            0.02564102564102564
+          ],
+          "side_B_adapter_runs": [
+            0.02564102564102564
+          ],
+          "side_A_summary": "0.026 (n=1)",
+          "side_B_summary": "0.026 (n=1)",
+          "match": true
+        }
+      ]
+    },
+    {
+      "task_id": "real-estate/draft-construction-contract",
+      "n_criteria": 81,
+      "runs": [
+        {
+          "run": 1,
+          "agent_files": [
+            "construction-contract-pinnacle-ironclad.md",
+            "drafting-issues-memo.md"
+          ],
+          "agent_seconds": 6.015423059463501,
+          "side_A_original": {
+            "n": 81,
+            "n_pass": 19,
+            "criterion_pass_rate": 0.2345679012345679,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 81,
+            "n_pass": 21,
+            "criterion_pass_rate": 0.25925925925925924,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        }
+      ],
+      "metrics": [
+        {
+          "metric": "all-pass-reward",
+          "side_A_original_runs": [
+            0.0
+          ],
+          "side_B_adapter_runs": [
+            0.0
+          ],
+          "side_A_summary": "0.000 (n=1)",
+          "side_B_summary": "0.000 (n=1)",
+          "match": true
+        },
+        {
+          "metric": "criterion-pass-rate",
+          "side_A_original_runs": [
+            0.2345679012345679
+          ],
+          "side_B_adapter_runs": [
+            0.25925925925925924
+          ],
+          "side_A_summary": "0.235 (n=1)",
+          "side_B_summary": "0.259 (n=1)",
+          "match": false
+        }
+      ]
+    },
+    {
+      "task_id": "intellectual-property/review-enterprise-saas-agreement",
+      "n_criteria": 42,
+      "runs": [
+        {
+          "run": 1,
+          "agent_files": [
+            "saas-agreement-issues-memo.docx"
+          ],
+          "agent_seconds": 5.266579866409302,
+          "side_A_original": {
+            "n": 42,
+            "n_pass": 16,
+            "criterion_pass_rate": 0.38095238095238093,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 42,
+            "n_pass": 17,
+            "criterion_pass_rate": 0.40476190476190477,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        }
+      ],
+      "metrics": [
+        {
+          "metric": "all-pass-reward",
+          "side_A_original_runs": [
+            0.0
+          ],
+          "side_B_adapter_runs": [
+            0.0
+          ],
+          "side_A_summary": "0.000 (n=1)",
+          "side_B_summary": "0.000 (n=1)",
+          "match": true
+        },
+        {
+          "metric": "criterion-pass-rate",
+          "side_A_original_runs": [
+            0.38095238095238093
+          ],
+          "side_B_adapter_runs": [
+            0.40476190476190477
+          ],
+          "side_A_summary": "0.381 (n=1)",
+          "side_B_summary": "0.405 (n=1)",
+          "match": false
+        }
+      ]
+    },
+    {
+      "task_id": "employment-labor/draft-workplace-policy-memorandum",
+      "n_criteria": 45,
+      "runs": [
+        {
+          "run": 1,
+          "agent_files": [
+            "rto-policy-memorandum.docx"
+          ],
+          "agent_seconds": 5.421272039413452,
+          "side_A_original": {
+            "n": 45,
+            "n_pass": 17,
+            "criterion_pass_rate": 0.37777777777777777,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 45,
+            "n_pass": 16,
+            "criterion_pass_rate": 0.35555555555555557,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        }
+      ],
+      "metrics": [
+        {
+          "metric": "all-pass-reward",
+          "side_A_original_runs": [
+            0.0
+          ],
+          "side_B_adapter_runs": [
+            0.0
+          ],
+          "side_A_summary": "0.000 (n=1)",
+          "side_B_summary": "0.000 (n=1)",
+          "match": true
+        },
+        {
+          "metric": "criterion-pass-rate",
+          "side_A_original_runs": [
+            0.37777777777777777
+          ],
+          "side_B_adapter_runs": [
+            0.35555555555555557
+          ],
+          "side_A_summary": "0.378 (n=1)",
+          "side_B_summary": "0.356 (n=1)",
+          "match": false
+        }
+      ]
+    }
+  ],
+  "merged_from": [
+    "/tmp/parity_3run_2tasks.json",
+    "/tmp/parity_1run_5tasks.json"
+  ],
+  "notes": {
+    "experiment_scope": "Conversion-faithfulness parity: same agent + same model on both sides; deliverables scored by the same judge model under (A) the upstream str.format-style prompt and (B) the adapter string.Template prompt.",
+    "tasks_with_3_runs": [
+      "trusts-estates-private-client/compare-trust-documents-against-client-instructions",
+      "employment-labor/identify-issues-in-counterparty-motion-brief"
+    ],
+    "tasks_with_1_run": [
+      "corporate-ma/analyze-cim-deal-teaser/scenario-01",
+      "insurance/compare-reinsurance-treaty-against-underlying-policy",
+      "real-estate/draft-construction-contract",
+      "intellectual-property/review-enterprise-saas-agreement",
+      "employment-labor/draft-workplace-policy-memorandum"
+    ],
+    "matching_caveat": "For 1-run tasks the harbor criterion max(A)>=min(B) AND max(B)>=min(A) collapses to exact equality, which is fragile with judge stochasticity. The 3-run rows are the substantive parity claim.",
+    "next_steps": "Scale to 3 runs per side on the full 5-task parity subset to remove the 1-run match fragility. Optionally couple this with end-to-end runs on the upstream harvey-labs Podman harness for a full source-vs-adapter score-distribution claim."
+  }
+}

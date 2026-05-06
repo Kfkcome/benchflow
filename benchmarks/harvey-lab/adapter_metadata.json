@@ -1,0 +1,30 @@
+{
+  "adapter_name": "harvey-lab",
+  "adapter_builders": [
+    "Xiangyi Li (xiangyi@benchflow.ai)"
+  ],
+  "original_benchmark": [
+    {
+      "name": "Harvey LAB (Legal Agent Benchmark)",
+      "url": "https://github.com/harveyai/harvey-labs",
+      "branch": "main",
+      "pinned_commit": "7daf1ac289b5fb1a8cacc0616651097acd51799b",
+      "license": "MIT",
+      "task_count": 1251,
+      "practice_areas": 24
+    }
+  ],
+  "benchflow_adapter": [
+    {
+      "adapted_benchmark_size": 1251,
+      "parity_benchmark_size": 5,
+      "parity_sampling_rate": 0.004,
+      "parity_matching_agents": [
+        "benchflow-gemini@1.0+gemini-3.1-flash-lite-preview"
+      ],
+      "parity_costs_usd": null,
+      "judge_model": "gemini-3.1-flash-lite-preview",
+      "judge_temperature": 0.0
+    }
+  ]
+}

@@ -20,6 +20,7 @@
         "group": "Guides",
         "pages": [
           "docs/task-authoring",
+          "docs/datasets/adapters",
           "docs/skill-eval",
           "docs/use-cases",
           "docs/progressive-disclosure",

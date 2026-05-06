@@ -16,6 +16,12 @@ TASK_REPOS = {
     "terminal-bench-2": {
         "repo": "https://github.com/harbor-framework/terminal-bench-2.git",
     },
+    # Harvey LAB upstream — adapter at benchmarks/harvey-lab/benchflow.py
+    # converts these raw tasks into the BenchFlow task format.
+    "harvey-lab": {
+        "repo": "https://github.com/harveyai/harvey-labs.git",
+        "ref": "main",
+    },
 }
 
 

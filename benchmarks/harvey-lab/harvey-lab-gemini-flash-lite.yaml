@@ -1,0 +1,11 @@
+# Harvey LAB job config — gemini-3.1-flash-lite-preview baseline.
+# Runs the BenchFlow-converted Harvey LAB tasks via Job.from_yaml().
+
+tasks_dir: .ref/harvey-lab-benchflow   # populated by run_harvey_lab.py
+jobs_dir: ../jobs/harvey-lab-gemini-flash-lite
+agent: gemini
+model: gemini-3.1-flash-lite-preview
+environment: daytona
+concurrency: 12
+max_retries: 0
+sandbox_user: null

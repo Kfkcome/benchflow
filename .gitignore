@@ -180,6 +180,7 @@ jobs/
 dogfood/
 tmp/
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 tests/.smoke-jobs/
 context/
 tutorials/

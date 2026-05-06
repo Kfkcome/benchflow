@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Added
+
+- `benchmarks/harvey-lab/` — Harvey LAB (Legal Agent Benchmark, 1,251 tasks)
+  adapter following the new BenchFlow benchmark adapter convention:
+  `benchflow.py` converter CLI, `benchmark.yaml` descriptor,
+  `adapter_metadata.json`, `parity_test.py` (structural / side-by-side /
+  agent-runs), and `parity_experiment.json`.
+- `docs/datasets/adapters.md` documenting the adapter convention,
+  parity protocol (`max(A) >= min(B) AND max(B) >= min(A)`, mean ± SEM),
+  and the GitHub / HuggingFace mirror layout (`benchflow-ai/benchmarks`,
+  `benchflow/benchmarks`).
+- `tests/test_harvey_lab_adapter.py` — structural smoke tests for the
+  adapter.
+- `harvey-lab` entry in `task_download.TASK_REPOS` so
+  `ensure_tasks("harvey-lab")` clones the upstream repo on demand.
+
 ## 0.2.3 — 2026-04-15
 
 ### Added

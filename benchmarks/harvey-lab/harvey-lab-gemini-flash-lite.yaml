@@ -6,6 +6,8 @@ jobs_dir: ../jobs/harvey-lab-gemini-flash-lite
 agent: gemini
 model: gemini-3.1-flash-lite-preview
 environment: daytona
-concurrency: 12
+concurrency: 16
 max_retries: 0
 sandbox_user: null
+agent_env:
+  GEMINI_API_KEY: "${GEMINI_API_KEY}"

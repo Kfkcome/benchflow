@@ -96,7 +96,7 @@ def test_generated_task_toml_is_valid_and_named(tmp_path: Path):
     [info] = mod.discover_tasks(src_root)
     td = mod.generate_task(info, out, overwrite=False)
     cfg = tomllib.loads((td / "task.toml").read_text())
-    assert cfg["task"]["name"] == "harvey-lab/demo-area/tiny-task"
+    assert cfg["task"]["name"] == "harvey-lab/demo-area-tiny-task"
     assert cfg["agent"]["timeout_sec"] >= 1800
     assert cfg["verifier"]["env"]["GEMINI_API_KEY"] == "${GEMINI_API_KEY}"
 

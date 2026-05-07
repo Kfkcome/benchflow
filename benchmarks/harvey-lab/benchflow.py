@@ -569,8 +569,10 @@ def generate_task(info: dict, out_root: Path, *, overwrite: bool) -> Path | None
     deliverables = dict(config.get("deliverables") or {})
     criteria = list(config.get("criteria") or [])
 
-    # Stable registry name preserves the upstream hierarchy.
-    registry_name = f"harvey-lab/{task_id}"
+    # Stable, unique registry name. TaskConfig requires single-segment
+    # `org/name`, so we sanitize the upstream slash-separated id into one
+    # hyphen-joined segment that mirrors the on-disk directory name.
+    registry_name = f"harvey-lab/{name}"
 
     (task_dir / "task.toml").write_text(
         render_task_toml(

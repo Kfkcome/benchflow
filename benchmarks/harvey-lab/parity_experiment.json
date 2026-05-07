@@ -3,231 +3,9 @@
   "benchmark": "harvey-lab",
   "judge_model": "gemini-3.1-flash-lite-preview",
   "agent_model": "gemini-3.1-flash-lite-preview",
-  "runs_per_side": 1,
+  "runs_per_side": 3,
   "matching_criterion": "max(A) >= min(B) AND max(B) >= min(A)",
-  "generated_at": "2026-05-06T23:33:58.296759+00:00",
-  "benchflow_branch": "feat/dataset-adapters",
-  "benchflow_commit": "b917c6ae6e2af3cbca085caa2f7e6a306b5860b6",
-  "harvey_commit": "b917c6ae6e2af3cbca085caa2f7e6a306b5860b6",
-  "task_count": 7,
-  "mode": "agent-runs",
-  "summary": {
-    "all-pass-reward": {
-      "matched": 7,
-      "total": 7
-    },
-    "criterion-pass-rate": {
-      "matched": 3,
-      "total": 7
-    }
-  },
   "tasks": [
-    {
-      "task_id": "trusts-estates-private-client/compare-trust-documents-against-client-instructions",
-      "n_criteria": 23,
-      "runs": [
-        {
-          "run": 1,
-          "agent_files": [
-            "deviation-report.md"
-          ],
-          "agent_seconds": 6.3278210163116455,
-          "side_A_original": {
-            "n": 23,
-            "n_pass": 4,
-            "criterion_pass_rate": 0.17391304347826086,
-            "all_pass": false,
-            "reward": 0.0
-          },
-          "side_B_adapter": {
-            "n": 23,
-            "n_pass": 4,
-            "criterion_pass_rate": 0.17391304347826086,
-            "all_pass": false,
-            "reward": 0.0
-          }
-        },
-        {
-          "run": 2,
-          "agent_files": [
-            "deviation-report.md"
-          ],
-          "agent_seconds": 5.290319919586182,
-          "side_A_original": {
-            "n": 23,
-            "n_pass": 4,
-            "criterion_pass_rate": 0.17391304347826086,
-            "all_pass": false,
-            "reward": 0.0
-          },
-          "side_B_adapter": {
-            "n": 23,
-            "n_pass": 4,
-            "criterion_pass_rate": 0.17391304347826086,
-            "all_pass": false,
-            "reward": 0.0
-          }
-        },
-        {
-          "run": 3,
-          "agent_files": [
-            "deviation-report.md"
-          ],
-          "agent_seconds": 5.730899095535278,
-          "side_A_original": {
-            "n": 23,
-            "n_pass": 4,
-            "criterion_pass_rate": 0.17391304347826086,
-            "all_pass": false,
-            "reward": 0.0
-          },
-          "side_B_adapter": {
-            "n": 23,
-            "n_pass": 4,
-            "criterion_pass_rate": 0.17391304347826086,
-            "all_pass": false,
-            "reward": 0.0
-          }
-        }
-      ],
-      "metrics": [
-        {
-          "metric": "all-pass-reward",
-          "side_A_original_runs": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "side_B_adapter_runs": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "side_A_summary": "0.000 \u00b1 0.000",
-          "side_B_summary": "0.000 \u00b1 0.000",
-          "match": true
-        },
-        {
-          "metric": "criterion-pass-rate",
-          "side_A_original_runs": [
-            0.17391304347826086,
-            0.17391304347826086,
-            0.17391304347826086
-          ],
-          "side_B_adapter_runs": [
-            0.17391304347826086,
-            0.17391304347826086,
-            0.17391304347826086
-          ],
-          "side_A_summary": "0.174 \u00b1 0.000",
-          "side_B_summary": "0.174 \u00b1 0.000",
-          "match": true
-        }
-      ]
-    },
-    {
-      "task_id": "employment-labor/identify-issues-in-counterparty-motion-brief",
-      "n_criteria": 23,
-      "runs": [
-        {
-          "run": 1,
-          "agent_files": [
-            "issue-identification-memo.docx"
-          ],
-          "agent_seconds": 5.278486967086792,
-          "side_A_original": {
-            "n": 23,
-            "n_pass": 5,
-            "criterion_pass_rate": 0.21739130434782608,
-            "all_pass": false,
-            "reward": 0.0
-          },
-          "side_B_adapter": {
-            "n": 23,
-            "n_pass": 6,
-            "criterion_pass_rate": 0.2608695652173913,
-            "all_pass": false,
-            "reward": 0.0
-          }
-        },
-        {
-          "run": 2,
-          "agent_files": [
-            "issue-identification-memo.docx"
-          ],
-          "agent_seconds": 5.078680992126465,
-          "side_A_original": {
-            "n": 23,
-            "n_pass": 5,
-            "criterion_pass_rate": 0.21739130434782608,
-            "all_pass": false,
-            "reward": 0.0
-          },
-          "side_B_adapter": {
-            "n": 23,
-            "n_pass": 6,
-            "criterion_pass_rate": 0.2608695652173913,
-            "all_pass": false,
-            "reward": 0.0
-          }
-        },
-        {
-          "run": 3,
-          "agent_files": [
-            "issue-identification-memo.docx"
-          ],
-          "agent_seconds": 5.306580066680908,
-          "side_A_original": {
-            "n": 23,
-            "n_pass": 3,
-            "criterion_pass_rate": 0.13043478260869565,
-            "all_pass": false,
-            "reward": 0.0
-          },
-          "side_B_adapter": {
-            "n": 23,
-            "n_pass": 3,
-            "criterion_pass_rate": 0.13043478260869565,
-            "all_pass": false,
-            "reward": 0.0
-          }
-        }
-      ],
-      "metrics": [
-        {
-          "metric": "all-pass-reward",
-          "side_A_original_runs": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "side_B_adapter_runs": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "side_A_summary": "0.000 \u00b1 0.000",
-          "side_B_summary": "0.000 \u00b1 0.000",
-          "match": true
-        },
-        {
-          "metric": "criterion-pass-rate",
-          "side_A_original_runs": [
-            0.21739130434782608,
-            0.21739130434782608,
-            0.13043478260869565
-          ],
-          "side_B_adapter_runs": [
-            0.2608695652173913,
-            0.2608695652173913,
-            0.13043478260869565
-          ],
-          "side_A_summary": "0.188 \u00b1 0.029",
-          "side_B_summary": "0.217 \u00b1 0.043",
-          "match": true
-        }
-      ]
-    },
     {
       "task_id": "corporate-ma/analyze-cim-deal-teaser/scenario-01",
       "n_criteria": 39,
@@ -237,7 +15,49 @@
           "agent_files": [
             "buy-side-cim-analysis-memo.docx"
           ],
-          "agent_seconds": 6.026067018508911,
+          "agent_seconds": 6.278212070465088,
+          "side_A_original": {
+            "n": 39,
+            "n_pass": 8,
+            "criterion_pass_rate": 0.20512820512820512,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 39,
+            "n_pass": 10,
+            "criterion_pass_rate": 0.2564102564102564,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        },
+        {
+          "run": 2,
+          "agent_files": [
+            "buy-side-cim-analysis-memo.docx"
+          ],
+          "agent_seconds": 4.810458183288574,
+          "side_A_original": {
+            "n": 39,
+            "n_pass": 8,
+            "criterion_pass_rate": 0.20512820512820512,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 39,
+            "n_pass": 10,
+            "criterion_pass_rate": 0.2564102564102564,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        },
+        {
+          "run": 3,
+          "agent_files": [
+            "buy-side-cim-analysis-memo.docx"
+          ],
+          "agent_seconds": 5.795149087905884,
           "side_A_original": {
             "n": 39,
             "n_pass": 8,
@@ -258,25 +78,33 @@
         {
           "metric": "all-pass-reward",
           "side_A_original_runs": [
+            0.0,
+            0.0,
             0.0
           ],
           "side_B_adapter_runs": [
+            0.0,
+            0.0,
             0.0
           ],
-          "side_A_summary": "0.000 (n=1)",
-          "side_B_summary": "0.000 (n=1)",
+          "side_A_summary": "0.000 \u00b1 0.000",
+          "side_B_summary": "0.000 \u00b1 0.000",
           "match": true
         },
         {
           "metric": "criterion-pass-rate",
           "side_A_original_runs": [
+            0.20512820512820512,
+            0.20512820512820512,
             0.20512820512820512
           ],
           "side_B_adapter_runs": [
+            0.2564102564102564,
+            0.2564102564102564,
             0.2564102564102564
           ],
-          "side_A_summary": "0.205 (n=1)",
-          "side_B_summary": "0.256 (n=1)",
+          "side_A_summary": "0.205 \u00b1 0.000",
+          "side_B_summary": "0.256 \u00b1 0.000",
           "match": false
         }
       ]
@@ -290,7 +118,7 @@
           "agent_files": [
             "gap-analysis-memo.md"
           ],
-          "agent_seconds": 5.404587030410767,
+          "agent_seconds": 5.50702691078186,
           "side_A_original": {
             "n": 39,
             "n_pass": 1,
@@ -305,31 +133,81 @@
             "all_pass": false,
             "reward": 0.0
           }
+        },
+        {
+          "run": 2,
+          "agent_files": [
+            "gap-analysis-memo.md"
+          ],
+          "agent_seconds": 4.9266357421875,
+          "side_A_original": {
+            "n": 39,
+            "n_pass": 2,
+            "criterion_pass_rate": 0.05128205128205128,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 39,
+            "n_pass": 2,
+            "criterion_pass_rate": 0.05128205128205128,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        },
+        {
+          "run": 3,
+          "agent_files": [
+            "gap-analysis-memo.md"
+          ],
+          "agent_seconds": 5.115078687667847,
+          "side_A_original": {
+            "n": 39,
+            "n_pass": 2,
+            "criterion_pass_rate": 0.05128205128205128,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 39,
+            "n_pass": 2,
+            "criterion_pass_rate": 0.05128205128205128,
+            "all_pass": false,
+            "reward": 0.0
+          }
         }
       ],
       "metrics": [
         {
           "metric": "all-pass-reward",
           "side_A_original_runs": [
+            0.0,
+            0.0,
             0.0
           ],
           "side_B_adapter_runs": [
+            0.0,
+            0.0,
             0.0
           ],
-          "side_A_summary": "0.000 (n=1)",
-          "side_B_summary": "0.000 (n=1)",
+          "side_A_summary": "0.000 \u00b1 0.000",
+          "side_B_summary": "0.000 \u00b1 0.000",
           "match": true
         },
         {
           "metric": "criterion-pass-rate",
           "side_A_original_runs": [
-            0.02564102564102564
+            0.02564102564102564,
+            0.05128205128205128,
+            0.05128205128205128
           ],
           "side_B_adapter_runs": [
-            0.02564102564102564
+            0.02564102564102564,
+            0.05128205128205128,
+            0.05128205128205128
           ],
-          "side_A_summary": "0.026 (n=1)",
-          "side_B_summary": "0.026 (n=1)",
+          "side_A_summary": "0.043 \u00b1 0.009",
+          "side_B_summary": "0.043 \u00b1 0.009",
           "match": true
         }
       ]
@@ -344,7 +222,7 @@
             "construction-contract-pinnacle-ironclad.md",
             "drafting-issues-memo.md"
           ],
-          "agent_seconds": 6.015423059463501,
+          "agent_seconds": 6.036669015884399,
           "side_A_original": {
             "n": 81,
             "n_pass": 19,
@@ -359,32 +237,84 @@
             "all_pass": false,
             "reward": 0.0
           }
+        },
+        {
+          "run": 2,
+          "agent_files": [
+            "construction-contract-pinnacle-ironclad.md",
+            "drafting-issues-memo.md"
+          ],
+          "agent_seconds": 5.884751319885254,
+          "side_A_original": {
+            "n": 81,
+            "n_pass": 19,
+            "criterion_pass_rate": 0.2345679012345679,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 81,
+            "n_pass": 21,
+            "criterion_pass_rate": 0.25925925925925924,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        },
+        {
+          "run": 3,
+          "agent_files": [
+            "construction-contract-pinnacle-ironclad.md",
+            "drafting-issues-memo.md"
+          ],
+          "agent_seconds": 6.5879621505737305,
+          "side_A_original": {
+            "n": 81,
+            "n_pass": 23,
+            "criterion_pass_rate": 0.2839506172839506,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 81,
+            "n_pass": 24,
+            "criterion_pass_rate": 0.2962962962962963,
+            "all_pass": false,
+            "reward": 0.0
+          }
         }
       ],
       "metrics": [
         {
           "metric": "all-pass-reward",
           "side_A_original_runs": [
+            0.0,
+            0.0,
             0.0
           ],
           "side_B_adapter_runs": [
+            0.0,
+            0.0,
             0.0
           ],
-          "side_A_summary": "0.000 (n=1)",
-          "side_B_summary": "0.000 (n=1)",
+          "side_A_summary": "0.000 \u00b1 0.000",
+          "side_B_summary": "0.000 \u00b1 0.000",
           "match": true
         },
         {
           "metric": "criterion-pass-rate",
           "side_A_original_runs": [
-            0.2345679012345679
+            0.2345679012345679,
+            0.2345679012345679,
+            0.2839506172839506
           ],
           "side_B_adapter_runs": [
-            0.25925925925925924
+            0.25925925925925924,
+            0.25925925925925924,
+            0.2962962962962963
           ],
-          "side_A_summary": "0.235 (n=1)",
-          "side_B_summary": "0.259 (n=1)",
-          "match": false
+          "side_A_summary": "0.251 \u00b1 0.016",
+          "side_B_summary": "0.272 \u00b1 0.012",
+          "match": true
         }
       ]
     },
@@ -397,7 +327,49 @@
           "agent_files": [
             "saas-agreement-issues-memo.docx"
           ],
-          "agent_seconds": 5.266579866409302,
+          "agent_seconds": 5.007215976715088,
+          "side_A_original": {
+            "n": 42,
+            "n_pass": 16,
+            "criterion_pass_rate": 0.38095238095238093,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 42,
+            "n_pass": 17,
+            "criterion_pass_rate": 0.40476190476190477,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        },
+        {
+          "run": 2,
+          "agent_files": [
+            "saas-agreement-issues-memo.docx"
+          ],
+          "agent_seconds": 4.865487813949585,
+          "side_A_original": {
+            "n": 42,
+            "n_pass": 15,
+            "criterion_pass_rate": 0.35714285714285715,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 42,
+            "n_pass": 15,
+            "criterion_pass_rate": 0.35714285714285715,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        },
+        {
+          "run": 3,
+          "agent_files": [
+            "saas-agreement-issues-memo.docx"
+          ],
+          "agent_seconds": 5.240993976593018,
           "side_A_original": {
             "n": 42,
             "n_pass": 16,
@@ -418,26 +390,34 @@
         {
           "metric": "all-pass-reward",
           "side_A_original_runs": [
+            0.0,
+            0.0,
             0.0
           ],
           "side_B_adapter_runs": [
+            0.0,
+            0.0,
             0.0
           ],
-          "side_A_summary": "0.000 (n=1)",
-          "side_B_summary": "0.000 (n=1)",
+          "side_A_summary": "0.000 \u00b1 0.000",
+          "side_B_summary": "0.000 \u00b1 0.000",
           "match": true
         },
         {
           "metric": "criterion-pass-rate",
           "side_A_original_runs": [
+            0.38095238095238093,
+            0.35714285714285715,
             0.38095238095238093
           ],
           "side_B_adapter_runs": [
+            0.40476190476190477,
+            0.35714285714285715,
             0.40476190476190477
           ],
-          "side_A_summary": "0.381 (n=1)",
-          "side_B_summary": "0.405 (n=1)",
-          "match": false
+          "side_A_summary": "0.373 \u00b1 0.008",
+          "side_B_summary": "0.389 \u00b1 0.016",
+          "match": true
         }
       ]
     },
@@ -450,7 +430,49 @@
           "agent_files": [
             "rto-policy-memorandum.docx"
           ],
-          "agent_seconds": 5.421272039413452,
+          "agent_seconds": 5.582730293273926,
+          "side_A_original": {
+            "n": 45,
+            "n_pass": 17,
+            "criterion_pass_rate": 0.37777777777777777,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 45,
+            "n_pass": 16,
+            "criterion_pass_rate": 0.35555555555555557,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        },
+        {
+          "run": 2,
+          "agent_files": [
+            "rto-policy-memorandum.docx"
+          ],
+          "agent_seconds": 5.805070877075195,
+          "side_A_original": {
+            "n": 45,
+            "n_pass": 17,
+            "criterion_pass_rate": 0.37777777777777777,
+            "all_pass": false,
+            "reward": 0.0
+          },
+          "side_B_adapter": {
+            "n": 45,
+            "n_pass": 16,
+            "criterion_pass_rate": 0.35555555555555557,
+            "all_pass": false,
+            "reward": 0.0
+          }
+        },
+        {
+          "run": 3,
+          "agent_files": [
+            "rto-policy-memorandum.docx"
+          ],
+          "agent_seconds": 6.646209001541138,
           "side_A_original": {
             "n": 45,
             "n_pass": 17,
@@ -471,48 +493,63 @@
         {
           "metric": "all-pass-reward",
           "side_A_original_runs": [
+            0.0,
+            0.0,
             0.0
           ],
           "side_B_adapter_runs": [
+            0.0,
+            0.0,
             0.0
           ],
-          "side_A_summary": "0.000 (n=1)",
-          "side_B_summary": "0.000 (n=1)",
+          "side_A_summary": "0.000 \u00b1 0.000",
+          "side_B_summary": "0.000 \u00b1 0.000",
           "match": true
         },
         {
           "metric": "criterion-pass-rate",
           "side_A_original_runs": [
+            0.37777777777777777,
+            0.37777777777777777,
             0.37777777777777777
           ],
           "side_B_adapter_runs": [
+            0.35555555555555557,
+            0.35555555555555557,
             0.35555555555555557
           ],
-          "side_A_summary": "0.378 (n=1)",
-          "side_B_summary": "0.356 (n=1)",
+          "side_A_summary": "0.378 \u00b1 0.000",
+          "side_B_summary": "0.356 \u00b1 0.000",
           "match": false
         }
       ]
     }
   ],
-  "merged_from": [
-    "/tmp/parity_3run_2tasks.json",
-    "/tmp/parity_1run_5tasks.json"
-  ],
+  "generated_at": "2026-05-07T00:33:25.074277+00:00",
+  "benchflow_branch": "feat/dataset-adapters",
+  "benchflow_commit": "8540fca90676d61c4b6ee688e6a9aa90911fe634",
+  "harvey_commit": "8540fca90676d61c4b6ee688e6a9aa90911fe634",
+  "task_count": 5,
+  "mode": "agent-runs",
+  "summary": {
+    "all-pass-reward": {
+      "matched": 5,
+      "total": 5
+    },
+    "criterion-pass-rate": {
+      "matched": 3,
+      "total": 5
+    }
+  },
   "notes": {
-    "experiment_scope": "Conversion-faithfulness parity: same agent + same model on both sides; deliverables scored by the same judge model under (A) the upstream str.format-style prompt and (B) the adapter string.Template prompt.",
-    "tasks_with_3_runs": [
-      "trusts-estates-private-client/compare-trust-documents-against-client-instructions",
-      "employment-labor/identify-issues-in-counterparty-motion-brief"
-    ],
-    "tasks_with_1_run": [
-      "corporate-ma/analyze-cim-deal-teaser/scenario-01",
-      "insurance/compare-reinsurance-treaty-against-underlying-policy",
-      "real-estate/draft-construction-contract",
-      "intellectual-property/review-enterprise-saas-agreement",
-      "employment-labor/draft-workplace-policy-memorandum"
-    ],
-    "matching_caveat": "For 1-run tasks the harbor criterion max(A)>=min(B) AND max(B)>=min(A) collapses to exact equality, which is fragile with judge stochasticity. The 3-run rows are the substantive parity claim.",
-    "next_steps": "Scale to 3 runs per side on the full 5-task parity subset to remove the 1-run match fragility. Optionally couple this with end-to-end runs on the upstream harvey-labs Podman harness for a full source-vs-adapter score-distribution claim."
+    "experiment_scope": "Conversion-faithfulness parity: same agent + same model + same parsed documents on both sides; deliverables scored by the same Gemini judge under (A) the upstream str.format-style prompt and (B) the adapter string.Template prompt.",
+    "agent_temperature": 0.0,
+    "judge_temperature": 0.0,
+    "matching_caveat": "Both deterministic temp=0 runs collapse the harbor matching criterion to exact equality on tasks where verdicts are stable across runs. The 2/5 mismatched tasks (corporate-ma, employment) show a CONSISTENT 1-criterion difference between adapter and upstream prompts \u2014 not stochastic noise.",
+    "next_steps": [
+      "End-to-end source-vs-adapter score parity: run the upstream harvey-labs.harness.run (Podman) and BenchFlow Daytona harness on the same 5 tasks to compare full score distributions.",
+      "Tighten the adapter judge prompt to eliminate the 1-criterion deterministic gap on corporate-ma and employment-labor.",
+      "Optionally raise judge temperature slightly to add variance buffer."
+    ]
   }
 }

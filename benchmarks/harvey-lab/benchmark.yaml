@@ -1,56 +1,48 @@
-# Harvey LAB — BenchFlow benchmark descriptor.
-#
-# This file declares the benchmark's identity, where its raw data comes from,
-# how tasks are verified, and the parity evidence backing the conversion.
-# The runnable job config (model, agent, environment) lives in a separate
-# YAML next to this one (e.g. harvey-lab-gemini-flash-lite.yaml).
-
 name: harvey-lab
-description: |
-  Legal Agent Benchmark (Harvey LAB) — 1,251 realistic legal tasks across
-  24 practice areas. Tasks ship instructions, source documents, and a
-  rubric of pass/fail criteria graded by an LLM judge (all-pass scoring).
+description: "Legal Agent Benchmark (Harvey LAB) \u2014 1,251 realistic legal tasks\
+  \ across\n24 practice areas. Tasks ship instructions, source documents, and a\n\
+  rubric of pass/fail criteria graded by an LLM judge (all-pass scoring).\n"
 upstream:
   url: https://github.com/harveyai/harvey-labs
   branch: main
   pinned_commit: 7daf1ac289b5fb1a8cacc0616651097acd51799b
 license: MIT
 authors:
-  - name: Harvey AI
-    email: labs@harvey.ai
-
-# ── Tasks ─────────────────────────────────────────────────────────────
+- name: Harvey AI
+  email: labs@harvey.ai
 tasks:
   count: 1251
   practice_areas: 24
-  work_types: [analyze, draft, review, research]
+  work_types:
+  - analyze
+  - draft
+  - review
+  - research
   criteria_per_task:
     min: 23
     max: 194
     median: ~60
-
-# ── Conversion ────────────────────────────────────────────────────────
 conversion:
   script: benchflow.py
   source_format: task.json + documents/
-  has_oracle_solutions: false   # harvey-labs ships no oracle; verifier judges deliverables
+  has_oracle_solutions: false
   splits:
-    full:   { selector: all,           count: 1251 }
-    parity: { selector: PARITY_SUBSET, count: 5 }   # see benchflow.py:PARITY_SUBSET
-
-# ── Verification ──────────────────────────────────────────────────────
+    full:
+      selector: all
+      count: 1251
+    parity:
+      selector: PARITY_SUBSET
+      count: 5
 verification:
   method: llm-as-judge
   judge_model: gemini-3.1-flash-lite-preview
   judge_temperature: 0.0
-  reward: all-pass              # 1.0 only when every criterion passes
+  reward: all-pass
   diagnostics:
-    - criterion_pass_rate       # n_passed / n_total, recorded in evaluation_details.json
-
-# ── Parity ────────────────────────────────────────────────────────────
-# Live results in parity_experiment.json. Re-run with parity_test.py.
+  - criterion_pass_rate
 parity:
-  protocol: symmetric runs, mean ± sample SEM, match = max(A) >= min(B) AND max(B) >= min(A)
+  protocol: "symmetric runs, mean \xB1 sample SEM, match = max(A) >= min(B) AND max(B)\
+    \ >= min(A)"
   artifact: parity_experiment.json
   hf_mirror: https://huggingface.co/datasets/benchflow/benchmarks
   structural:
@@ -59,9 +51,13 @@ parity:
   agent_runs:
     agent_model: gemini-3.1-flash-lite-preview
     judge_model: gemini-3.1-flash-lite-preview
-    tasks_with_3_runs: 2     # full mean ± SEM rows; the substantive parity claim
-    tasks_with_1_run: 5      # breadth sanity; 1-run match is fragile by construction
+    runs_per_side: 3
+    tasks_tested: 5
     metric_match_rate:
-      all_pass_reward: 7/7
-      criterion_pass_rate_3run_only: 2/2
-      criterion_pass_rate_all: 3/7
+      all_pass_reward: 5/5
+      criterion_pass_rate: 3/5
+      criterion_pass_rate_failures:
+      - corporate-ma/analyze-cim-deal-teaser/scenario-01 (consistent 1-criterion gap,
+        deterministic at temp=0)
+      - employment-labor/draft-workplace-policy-memorandum (consistent 1-criterion
+        gap, deterministic at temp=0)

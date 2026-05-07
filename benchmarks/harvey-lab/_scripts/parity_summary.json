@@ -3,103 +3,39 @@
   "mode": "agent-runs",
   "agent_model": "gemini-3.1-flash-lite-preview",
   "judge_model": "gemini-3.1-flash-lite-preview",
-  "runs_per_side": 1,
+  "runs_per_side": 3,
   "tasks": [
-    {
-      "task_id": "trusts-estates-private-client/compare-trust-documents-against-client-instructions",
-      "n_criteria": 23,
-      "metrics": {
-        "all-pass-reward": {
-          "side_A": "0.000 \u00b1 0.000",
-          "side_B": "0.000 \u00b1 0.000",
-          "match": true,
-          "side_A_runs": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "side_B_runs": [
-            0.0,
-            0.0,
-            0.0
-          ]
-        },
-        "criterion-pass-rate": {
-          "side_A": "0.174 \u00b1 0.000",
-          "side_B": "0.174 \u00b1 0.000",
-          "match": true,
-          "side_A_runs": [
-            0.17391304347826086,
-            0.17391304347826086,
-            0.17391304347826086
-          ],
-          "side_B_runs": [
-            0.17391304347826086,
-            0.17391304347826086,
-            0.17391304347826086
-          ]
-        }
-      }
-    },
-    {
-      "task_id": "employment-labor/identify-issues-in-counterparty-motion-brief",
-      "n_criteria": 23,
-      "metrics": {
-        "all-pass-reward": {
-          "side_A": "0.000 \u00b1 0.000",
-          "side_B": "0.000 \u00b1 0.000",
-          "match": true,
-          "side_A_runs": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "side_B_runs": [
-            0.0,
-            0.0,
-            0.0
-          ]
-        },
-        "criterion-pass-rate": {
-          "side_A": "0.188 \u00b1 0.029",
-          "side_B": "0.217 \u00b1 0.043",
-          "match": true,
-          "side_A_runs": [
-            0.21739130434782608,
-            0.21739130434782608,
-            0.13043478260869565
-          ],
-          "side_B_runs": [
-            0.2608695652173913,
-            0.2608695652173913,
-            0.13043478260869565
-          ]
-        }
-      }
-    },
     {
       "task_id": "corporate-ma/analyze-cim-deal-teaser/scenario-01",
       "n_criteria": 39,
       "metrics": {
         "all-pass-reward": {
-          "side_A": "0.000 (n=1)",
-          "side_B": "0.000 (n=1)",
+          "side_A": "0.000 \u00b1 0.000",
+          "side_B": "0.000 \u00b1 0.000",
           "match": true,
           "side_A_runs": [
+            0.0,
+            0.0,
             0.0
           ],
           "side_B_runs": [
+            0.0,
+            0.0,
             0.0
           ]
         },
         "criterion-pass-rate": {
-          "side_A": "0.205 (n=1)",
-          "side_B": "0.256 (n=1)",
+          "side_A": "0.205 \u00b1 0.000",
+          "side_B": "0.256 \u00b1 0.000",
           "match": false,
           "side_A_runs": [
+            0.20512820512820512,
+            0.20512820512820512,
             0.20512820512820512
           ],
           "side_B_runs": [
+            0.2564102564102564,
+            0.2564102564102564,
             0.2564102564102564
           ]
         }
@@ -110,25 +46,33 @@
       "n_criteria": 39,
       "metrics": {
         "all-pass-reward": {
-          "side_A": "0.000 (n=1)",
-          "side_B": "0.000 (n=1)",
+          "side_A": "0.000 \u00b1 0.000",
+          "side_B": "0.000 \u00b1 0.000",
           "match": true,
           "side_A_runs": [
+            0.0,
+            0.0,
             0.0
           ],
           "side_B_runs": [
+            0.0,
+            0.0,
             0.0
           ]
         },
         "criterion-pass-rate": {
-          "side_A": "0.026 (n=1)",
-          "side_B": "0.026 (n=1)",
+          "side_A": "0.043 \u00b1 0.009",
+          "side_B": "0.043 \u00b1 0.009",
           "match": true,
           "side_A_runs": [
-            0.02564102564102564
+            0.02564102564102564,
+            0.05128205128205128,
+            0.05128205128205128
           ],
           "side_B_runs": [
-            0.02564102564102564
+            0.02564102564102564,
+            0.05128205128205128,
+            0.05128205128205128
           ]
         }
       }
@@ -138,25 +82,33 @@
       "n_criteria": 81,
       "metrics": {
         "all-pass-reward": {
-          "side_A": "0.000 (n=1)",
-          "side_B": "0.000 (n=1)",
+          "side_A": "0.000 \u00b1 0.000",
+          "side_B": "0.000 \u00b1 0.000",
           "match": true,
           "side_A_runs": [
+            0.0,
+            0.0,
             0.0
           ],
           "side_B_runs": [
+            0.0,
+            0.0,
             0.0
           ]
         },
         "criterion-pass-rate": {
-          "side_A": "0.235 (n=1)",
-          "side_B": "0.259 (n=1)",
-          "match": false,
+          "side_A": "0.251 \u00b1 0.016",
+          "side_B": "0.272 \u00b1 0.012",
+          "match": true,
           "side_A_runs": [
-            0.2345679012345679
+            0.2345679012345679,
+            0.2345679012345679,
+            0.2839506172839506
           ],
           "side_B_runs": [
-            0.25925925925925924
+            0.25925925925925924,
+            0.25925925925925924,
+            0.2962962962962963
           ]
         }
       }
@@ -166,24 +118,32 @@
       "n_criteria": 42,
       "metrics": {
         "all-pass-reward": {
-          "side_A": "0.000 (n=1)",
-          "side_B": "0.000 (n=1)",
+          "side_A": "0.000 \u00b1 0.000",
+          "side_B": "0.000 \u00b1 0.000",
           "match": true,
           "side_A_runs": [
+            0.0,
+            0.0,
             0.0
           ],
           "side_B_runs": [
+            0.0,
+            0.0,
             0.0
           ]
         },
         "criterion-pass-rate": {
-          "side_A": "0.381 (n=1)",
-          "side_B": "0.405 (n=1)",
-          "match": false,
+          "side_A": "0.373 \u00b1 0.008",
+          "side_B": "0.389 \u00b1 0.016",
+          "match": true,
           "side_A_runs": [
+            0.38095238095238093,
+            0.35714285714285715,
             0.38095238095238093
           ],
           "side_B_runs": [
+            0.40476190476190477,
+            0.35714285714285715,
             0.40476190476190477
           ]
         }
@@ -194,24 +154,32 @@
       "n_criteria": 45,
       "metrics": {
         "all-pass-reward": {
-          "side_A": "0.000 (n=1)",
-          "side_B": "0.000 (n=1)",
+          "side_A": "0.000 \u00b1 0.000",
+          "side_B": "0.000 \u00b1 0.000",
           "match": true,
           "side_A_runs": [
+            0.0,
+            0.0,
             0.0
           ],
           "side_B_runs": [
+            0.0,
+            0.0,
             0.0
           ]
         },
         "criterion-pass-rate": {
-          "side_A": "0.378 (n=1)",
-          "side_B": "0.356 (n=1)",
+          "side_A": "0.378 \u00b1 0.000",
+          "side_B": "0.356 \u00b1 0.000",
           "match": false,
           "side_A_runs": [
+            0.37777777777777777,
+            0.37777777777777777,
             0.37777777777777777
           ],
           "side_B_runs": [
+            0.35555555555555557,
+            0.35555555555555557,
             0.35555555555555557
           ]
         }
@@ -220,12 +188,12 @@
   ],
   "overall": {
     "all-pass-reward": {
-      "matched": 7,
-      "total": 7
+      "matched": 5,
+      "total": 5
     },
     "criterion-pass-rate": {
       "matched": 3,
-      "total": 7
+      "total": 5
     }
   }
 }

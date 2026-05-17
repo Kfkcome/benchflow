@@ -1,10 +1,11 @@
 """Tests for process.py env handling (no Docker required)."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from benchflow.process import DockerProcess
+from benchflow.process import DockerProcess, ModalProcess
 
 
 class TestDockerProcessEnv:
@@ -294,3 +295,68 @@ class TestDaytonaProcessEnvFilePath:
         remote_cmd = captured[0][-1]
         assert "$$" not in remote_cmd
         assert "/tmp/benchflow_env_" in remote_cmd
+
+
+class TestModalProcess:
+    @pytest.mark.asyncio
+    async def test_modal_process_streams_lines_and_writes_stdin(self):
+        writes = []
+        calls = {}
+
+        class FakeStdout:
+            def __aiter__(self):
+                async def gen():
+                    yield "first"
+                    yield " line\nsecond line\n"
+
+                return gen()
+
+        class FakeStderr:
+            def __aiter__(self):
+                async def gen():
+                    if False:
+                        yield ""
+
+                return gen()
+
+        class FakeStdin:
+            def write(self, data):
+                writes.append(data)
+
+            async def drain(self):
+                return None
+
+            def write_eof(self):
+                writes.append("<eof>")
+
+        class FakeProc:
+            stdout = FakeStdout()
+            stderr = FakeStderr()
+            stdin = FakeStdin()
+
+            async def poll(self):
+                return None
+
+            async def wait(self):
+                return 0
+
+        class FakeExec:
+            @staticmethod
+            async def aio(*args, **kwargs):
+                calls["args"] = args
+                calls["kwargs"] = kwargs
+                return FakeProc()
+
+        env = SimpleNamespace(_sandbox=SimpleNamespace(exec=FakeExec))
+        proc = ModalProcess.from_modal_environment(env)
+        await proc.start("agent --acp", env={"KEY": "v"}, cwd="/app")
+
+        assert await proc.readline() == b"first line\n"
+        assert await proc.readline() == b"second line\n"
+        await proc.writeline('{"jsonrpc":"2.0"}')
+        await proc.close()
+
+        assert calls["args"] == ("bash", "-lc", "agent --acp")
+        assert calls["kwargs"]["workdir"] == "/app"
+        assert calls["kwargs"]["env"] == {"KEY": "v"}
+        assert writes == ['{"jsonrpc":"2.0"}\n', "<eof>"]

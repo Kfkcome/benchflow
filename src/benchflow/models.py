@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal
 if TYPE_CHECKING:
     from benchflow.rewards.events import RewardEvent
 
-TrajectorySource = Literal["acp", "scraped", "partial_acp"]
+TrajectorySource = Literal["acp", "acpx", "scraped", "partial_acp"]
 """Provenance label for a captured trajectory. See RunResult.trajectory_source."""
 
 
@@ -67,6 +67,10 @@ class RolloutResult:
         agent_name:   Name reported by the agent via ACP initialize handshake.
         model:        Model ID used (e.g. "google/gemini-3.1-flash-lite-preview").
         n_tool_calls: Total tool calls observed during the session.
+        token_usage: Aggregate trusted token usage captured from ACP/acpx usage
+                      events, when the agent reports it.
+        total_cost_usd: Aggregate trusted dollar cost captured from ACP/acpx
+                      usage events, when the agent reports it.
         n_prompts:    Number of user prompts sent to the agent.
         error:        Error description string, or None on success.
         verifier_error: Verifier error description, or None if verifier succeeded
@@ -74,7 +78,7 @@ class RolloutResult:
         partial_trajectory: True when the trajectory was salvaged from a timed-out
                       or crashed session and may be incomplete.
         trajectory_source: Provenance label for ``trajectory`` — one of
-                      ``"acp"`` (trusted), ``"scraped"`` (UNTRUSTED, agent-writable,
+                      ``"acp"`` / ``"acpx"`` (trusted), ``"scraped"`` (UNTRUSTED, agent-writable,
                       forgeable), ``"partial_acp"`` (partial ACP capture). Verifier
                       and metrics consumers decide trust per source. None if no
                       trajectory was captured.
@@ -94,6 +98,8 @@ class RolloutResult:
         agent_name: str = "",
         model: str = "",
         n_tool_calls: int = 0,
+        token_usage: dict[str, int] | None = None,
+        total_cost_usd: float | None = None,
         n_prompts: int = 0,
         error: str | None = None,
         verifier_error: str | None = None,
@@ -111,6 +117,8 @@ class RolloutResult:
         self.agent_name = agent_name
         self.model = model
         self.n_tool_calls = n_tool_calls
+        self.token_usage = token_usage
+        self.total_cost_usd = total_cost_usd
         self.n_prompts = n_prompts
         self.error = error
         self.verifier_error = verifier_error

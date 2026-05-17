@@ -174,6 +174,19 @@ bench eval create \
   --agent gemini --model gemini-3.1-flash-lite-preview --sandbox docker
 ```
 
+For HuggingFace-hosted task datasets, use `--source-hf` with the same
+`--source-path` selector:
+
+```bash
+bench eval create \
+  --source-hf benchflow/skillsbench \
+  --source-path tasks/edit-pdf \
+  --agent gemini --model gemini-3.1-flash-lite-preview --sandbox docker
+```
+
+Install the optional source resolver when using HuggingFace:
+`uv tool install 'benchflow[hf]'` or `pip install 'benchflow[hf]'`.
+
 ---
 
 ## Running ProgramBench
@@ -331,6 +344,19 @@ agent: claude-agent-acp            # agent from registry
 model: zai/glm-5.1                 # model ID
 environment: daytona               # sandbox
 concurrency: 8                     # parallel tasks
+```
+
+Use `hf:` instead of `repo:` for HuggingFace dataset repos:
+
+```yaml
+source:
+  hf: benchflow/skillsbench
+  path: tasks
+  ref: main
+agent: gemini
+model: gemini/gemini-3.1-flash-lite-preview
+environment: daytona
+concurrency: 8
 ```
 
 All adapted benchmarks use the same `source` pattern, pointing at the

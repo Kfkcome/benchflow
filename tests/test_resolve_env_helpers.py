@@ -18,6 +18,13 @@ from benchflow._agent_env import (
     validate_aws_bedrock_env,
 )
 
+
+@pytest.fixture(autouse=True)
+def _ignore_workspace_dotenv(monkeypatch, tmp_path):
+    """Keep the developer's real .env from influencing helper unit tests."""
+    monkeypatch.setattr("benchflow._agent_env._DEFAULT_DOTENV_PATH", tmp_path / ".env")
+
+
 # ── auto_inherit_env ──
 
 
@@ -29,6 +36,16 @@ class TestAutoInheritEnv:
         [
             pytest.param("ANTHROPIC_API_KEY", "sk-host", id="anthropic"),
             pytest.param("OPENAI_API_KEY", "sk-oai", id="openai"),
+            pytest.param(
+                "BENCHFLOW_PROVIDER_BASE_URL",
+                "http://localhost:8080/v1",
+                id="benchflow-provider-base-url",
+            ),
+            pytest.param(
+                "BENCHFLOW_PROVIDER_API_KEY",
+                "sk-provider",
+                id="benchflow-provider-api-key",
+            ),
             pytest.param("AWS_BEARER_TOKEN_BEDROCK", "bedrock-token", id="bedrock"),
             pytest.param("AWS_REGION", "us-east-1", id="bedrock-region"),
             pytest.param("ZAI_API_KEY", "zk-host", id="provider"),
@@ -299,6 +316,42 @@ class TestValidateAwsBedrockEnv:
 
 
 # ── resolve_agent_env: no-model subscription auth ──
+
+
+class TestResolveAgentEnvDotenv:
+    """Tests for .env auto-load and precedence in resolve_agent_env."""
+
+    def test_reads_dotenv_when_shell_env_missing(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        dotenv = tmp_path / ".env"
+        dotenv.write_text("OPENAI_API_KEY=sk-dotenv\n")
+        monkeypatch.setattr("benchflow._agent_env._DEFAULT_DOTENV_PATH", dotenv)
+
+        result = resolve_agent_env("codex-acp", "gpt-5.4-mini/low", {})
+
+        assert result["OPENAI_API_KEY"] == "sk-dotenv"
+
+    def test_shell_env_wins_over_dotenv(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-shell")
+        dotenv = tmp_path / ".env"
+        dotenv.write_text("OPENAI_API_KEY=sk-dotenv\n")
+        monkeypatch.setattr("benchflow._agent_env._DEFAULT_DOTENV_PATH", dotenv)
+
+        result = resolve_agent_env("codex-acp", "gpt-5.4-mini/low", {})
+
+        assert result["OPENAI_API_KEY"] == "sk-shell"
+
+    def test_explicit_agent_env_wins_over_shell_and_dotenv(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-shell")
+        dotenv = tmp_path / ".env"
+        dotenv.write_text("OPENAI_API_KEY=sk-dotenv\n")
+        monkeypatch.setattr("benchflow._agent_env._DEFAULT_DOTENV_PATH", dotenv)
+
+        result = resolve_agent_env(
+            "codex-acp", "gpt-5.4-mini/low", {"OPENAI_API_KEY": "sk-explicit"}
+        )
+
+        assert result["OPENAI_API_KEY"] == "sk-explicit"
 
 
 class TestResolveAgentEnvNoModel:

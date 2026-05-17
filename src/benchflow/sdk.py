@@ -89,6 +89,8 @@ class SDK:
         trajectory: list[dict],
         partial_trajectory: bool,
         trajectory_source: TrajectorySource | None = None,
+        token_usage: dict[str, int] | None = None,
+        total_cost_usd: float | None = None,
         rewards: dict | None,
         started_at: datetime,
         timing: dict[str, float],
@@ -107,6 +109,8 @@ class SDK:
             trajectory=trajectory,
             partial_trajectory=partial_trajectory,
             trajectory_source=trajectory_source,
+            token_usage=token_usage,
+            total_cost_usd=total_cost_usd,
             rewards=rewards,
             started_at=started_at,
             timing=timing,
@@ -134,6 +138,7 @@ class SDK:
         timing: dict,
         sandbox_user: str | None = None,
         workspace: str | None = None,
+        verifier_env: dict[str, str] | None = None,
     ) -> tuple[dict | None, str | None]:
         return await _verify_rollout(
             env,
@@ -142,6 +147,7 @@ class SDK:
             timing,
             sandbox_user=sandbox_user,
             workspace=workspace,
+            verifier_env=verifier_env,
         )
 
     async def run(
@@ -152,6 +158,7 @@ class SDK:
         *,
         model: str | None = None,
         agent_env: dict[str, str] | None = None,
+        verifier_env: dict[str, str] | None = None,
         job_name: str | None = None,
         trial_name: str | None = None,
         jobs_dir: str | Path = "jobs",
@@ -176,6 +183,7 @@ class SDK:
             prompts=prompts,
             model=model,
             agent_env=agent_env,
+            verifier_env=verifier_env,
             job_name=job_name,
             trial_name=trial_name,
             jobs_dir=jobs_dir,

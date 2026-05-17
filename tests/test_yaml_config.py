@@ -93,6 +93,67 @@ def test_from_harbor_yaml(harbor_yaml):
     assert job._jobs_dir == Path("output")
 
 
+def test_native_yaml_judge_parsed(tmp_path):
+    """YAML judge field becomes a verifier model override."""
+    tasks = tmp_path / "tasks" / "task-a"
+    tasks.mkdir(parents=True)
+    (tasks / "task.toml").write_text('version = "1.0"')
+
+    config = tmp_path / "config.yaml"
+    config.write_text("""
+tasks_dir: tasks
+judge: claude-sonnet-4-6
+""")
+
+    job = Job.from_yaml(config)
+
+    assert job._config.judge == "claude-sonnet-4-6"
+
+
+def test_native_yaml_huggingface_source(tmp_path, monkeypatch):
+    """Native YAML can resolve task sources from HuggingFace datasets."""
+    from benchflow import task_download
+
+    hf_tasks = tmp_path / "hf-tasks"
+    hf_tasks.mkdir()
+    calls = []
+
+    def fake_resolve_hf_source(repo_id, path=None, ref=None):
+        calls.append((repo_id, path, ref))
+        return hf_tasks
+
+    monkeypatch.setattr(task_download, "resolve_hf_source", fake_resolve_hf_source)
+    config = tmp_path / "config.yaml"
+    config.write_text("""
+source:
+  hf: benchflow/skillsbench
+  path: tasks
+  ref: main
+agent: pi-acp
+""")
+
+    job = Job.from_yaml(config)
+
+    assert job._tasks_dir == hf_tasks
+    assert calls == [("benchflow/skillsbench", "tasks", "main")]
+
+
+def test_native_yaml_rejects_ambiguous_source(tmp_path):
+    """A source block must identify one backing store."""
+    config = tmp_path / "config.yaml"
+    config.write_text("""
+source:
+  repo: benchflow-ai/skillsbench
+  hf: benchflow/skillsbench
+""")
+    try:
+        Job.from_yaml(config)
+    except ValueError as exc:
+        assert "only one of 'repo' or 'hf'" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError")
+
+
 def test_harbor_yaml_preserves_provider_prefix(tmp_path):
     """Provider prefix must survive _from_harbor_yaml for downstream resolution."""
     tasks = tmp_path / "tasks" / "task-a"

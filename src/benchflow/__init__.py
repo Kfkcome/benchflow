@@ -12,17 +12,6 @@ from importlib.metadata import version as _version
 
 __version__ = _version("benchflow")
 
-# Re-export Harbor's core types for downstream task authors
-from harbor import (
-    BaseAgent,
-    BaseEnvironment,
-    ExecResult,
-    Task,
-    TaskConfig,
-    Verifier,
-    VerifierResult,
-)
-
 # benchflow's additions
 from benchflow._env_setup import stage_dockerfile_deps
 from benchflow._scene import MailboxTransport, Message, MessageTransport, SceneRole
@@ -86,16 +75,25 @@ from benchflow.runtime import (
     run,
 )  # bf.run() — supports Agent, RolloutConfig, and str calling conventions
 
-# Sandbox protocol (v0.4 — parallel types, Harbor not yet removed)
+# Sandbox protocol (v0.4)
 from benchflow.sandbox import ExecResult as SandboxExecResult
 from benchflow.sandbox import ImageBuilder, ImageConfig, ImageRef, Sandbox
 from benchflow.sdk import SDK
 from benchflow.skills import SkillInfo, discover_skills, install_skill, parse_skill
+from benchflow.task import (
+    AgentConfig,
+    EnvironmentConfig,
+    Task,
+    TaskConfig,
+    TaskPaths,
+    VerifierConfig,
+)
 from benchflow.trajectories.otel import OTelCollector
 from benchflow.trajectories.proxy import TrajectoryProxy
 from benchflow.trajectories.types import Trajectory
 from benchflow.trial_yaml import trial_config_from_yaml
 from benchflow.user import BaseUser, FunctionUser, PassthroughUser, RoundResult
+from benchflow.verifier import Verifier, VerifierResult
 
 # Backward-compat aliases
 Trial = Rollout
@@ -134,12 +132,13 @@ __all__ = [
     "ImageBuilder",
     "ImageConfig",
     "ImageRef",
-    # Harbor re-exports
-    "BaseAgent",
-    "BaseEnvironment",
-    "ExecResult",
+    # Task / verifier model
     "Task",
     "TaskConfig",
+    "TaskPaths",
+    "AgentConfig",
+    "EnvironmentConfig",
+    "VerifierConfig",
     "Verifier",
     "VerifierResult",
     # ACP
@@ -231,7 +230,7 @@ __all__ = [
 
 
 def __getattr__(name: str):
-    """Fall through to harbor for names not explicitly re-exported."""
+    """Resolve BenchFlow submodules lazily."""
     # Let Python's normal submodule resolution handle subpackages first.
     import importlib
 
@@ -241,15 +240,4 @@ def __getattr__(name: str):
         if e.name != f"benchflow.{name}":
             raise
 
-    import harbor
-
-    if hasattr(harbor, name):
-        import warnings
-
-        warnings.warn(
-            f"'{name}' is not directly re-exported by benchflow. Use 'from harbor import {name}' instead.",
-            ImportWarning,
-            stacklevel=2,
-        )
-        return getattr(harbor, name)
     raise AttributeError(f"module 'benchflow' has no attribute {name!r}")

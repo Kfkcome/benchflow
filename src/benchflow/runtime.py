@@ -9,7 +9,7 @@ and multi-agent runs. Everything else layers on top:
 
 Architecture:
     Agent  → thin wrapper around registry entry + model + creds
-    Environment → wraps harbor Docker/Daytona env, owns lifecycle
+    Environment → wraps a BenchFlow sandbox environment, owns lifecycle
     Scene → 1+ roles + transport + scheduler (from _scene.py)
     Runtime → env + scene + execute loop + verify
     RuntimeResult → trajectories + messages + rewards + snapshots
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 class Environment:
-    """Wraps a Harbor Docker/Daytona environment, owns lifecycle.
+    """Wraps a BenchFlow sandbox environment, owns lifecycle.
 
     Usage::
 
@@ -64,10 +64,9 @@ class Environment:
         """Create an environment from a task directory."""
         from uuid import uuid4
 
-        from harbor.models.task.task import Task
-        from harbor.models.trial.paths import TrialPaths
-
         from benchflow._env_setup import _create_environment
+        from benchflow.paths import TrialPaths
+        from benchflow.task import Task
 
         task_path = Path(task_path)
         task = Task(task_path)
@@ -87,12 +86,12 @@ class Environment:
 
     @property
     def inner(self) -> Any:
-        """The underlying harbor environment (Docker/Daytona). Use for Scene-based shared sandbox access."""
+        """The underlying sandbox environment."""
         return self._inner
 
     @property
     def task(self) -> Any:
-        from harbor.models.task.task import Task
+        from benchflow.task import Task
 
         return Task(self.task_path)
 
@@ -197,6 +196,8 @@ class RuntimeResult:
     messages: list[dict] = field(default_factory=list)
     snapshots: list[str] = field(default_factory=list)
     trial_dir: Path | None = None
+    token_usage: dict[str, int] | None = None
+    total_cost_usd: float | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
 
@@ -221,6 +222,8 @@ class RuntimeResult:
             agent_name="",
             model="",
             n_tool_calls=self.n_tool_calls,
+            token_usage=self.token_usage,
+            total_cost_usd=self.total_cost_usd,
             n_prompts=0,
             error=self.error,
             verifier_error=self.verifier_error,

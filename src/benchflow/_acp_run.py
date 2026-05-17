@@ -28,13 +28,19 @@ from benchflow.acp.client import ACPClient
 from benchflow.acp.container_transport import ContainerTransport
 from benchflow.agents.providers import find_provider, strip_provider_prefix
 from benchflow.agents.registry import AGENTS
-from benchflow.process import DaytonaProcess, DaytonaPtyProcess, DockerProcess
+from benchflow.process import (
+    DaytonaProcess,
+    DaytonaPtyProcess,
+    DockerProcess,
+    ModalProcess,
+)
 
 logger = logging.getLogger(__name__)
 
 
 _ACP_CONNECT_MAX_RETRIES = 3
 _ACP_CONNECT_BASE_DELAY = 2.0
+_ACP_HANDSHAKE_TIMEOUT = 60
 
 # models.dev provider inference — used when acp_model_format="provider/model"
 # to reconstruct "provider/model" from a bare model name.
@@ -53,6 +59,16 @@ _MODELSDEV_PROVIDER_HEURISTICS: list[tuple[str, str]] = [
     ("mistral", "mistral"),
     ("codestral", "mistral"),
 ]
+
+
+async def _handshake_wait(awaitable, *, step: str, agent: str):
+    """Apply the bounded ACP handshake timeout with a useful error."""
+    try:
+        return await asyncio.wait_for(awaitable, timeout=_ACP_HANDSHAKE_TIMEOUT)
+    except TimeoutError as e:
+        raise ConnectionError(
+            f"ACP {step} timed out after {_ACP_HANDSHAKE_TIMEOUT}s for {agent}"
+        ) from e
 
 
 def _format_acp_model(model: str, agent: str) -> str:
@@ -181,16 +197,18 @@ async def connect_acp(
 
         try:
             if environment == "docker":
-                live_proc = DockerProcess.from_harbor_env(env)
+                live_proc = DockerProcess.from_docker_environment(env)
+            elif environment == "modal":
+                live_proc = ModalProcess.from_modal_environment(env)
             else:
                 is_dind = hasattr(env, "_strategy") and hasattr(
                     env._strategy, "_compose_cmd"
                 )
                 if is_dind:
-                    live_proc = await DaytonaPtyProcess.from_harbor_env(env)
+                    live_proc = await DaytonaPtyProcess.from_daytona_environment(env)
                     logger.info("Using PTY transport for DinD compose task")
                 else:
-                    live_proc = await DaytonaProcess.from_harbor_env(env)
+                    live_proc = await DaytonaProcess.from_daytona_environment(env)
 
             agent_log = trial_dir / "agent" / f"{agent.replace('-', '_')}.txt"
             transport = ContainerTransport(
@@ -201,16 +219,22 @@ async def connect_acp(
                 agent_log_path=agent_log,
             )
             acp_client = ACPClient(transport)
-            await acp_client.connect()
+            await _handshake_wait(
+                acp_client.connect(), step="connect", agent=agent
+            )
 
-            init_result = await asyncio.wait_for(acp_client.initialize(), timeout=60)
+            init_result = await _handshake_wait(
+                acp_client.initialize(), step="initialize", agent=agent
+            )
             agent_name = (
                 init_result.agent_info.name if init_result.agent_info else agent
             )
             logger.info(f"ACP agent: {agent_name}")
 
-            session = await asyncio.wait_for(
-                acp_client.session_new(cwd=agent_cwd), timeout=60
+            session = await _handshake_wait(
+                acp_client.session_new(cwd=agent_cwd),
+                step="session_new",
+                agent=agent,
             )
             logger.info(f"Session: {session.session_id}")
             break
@@ -238,7 +262,9 @@ async def connect_acp(
         acp_model_input = _resolve_acp_model_input(agent, model, agent_env)
         acp_model_id = _format_acp_model(acp_model_input, agent)
         try:
-            await asyncio.wait_for(acp_client.set_model(acp_model_id), timeout=60)
+            await asyncio.wait_for(
+                acp_client.set_model(acp_model_id), timeout=_ACP_HANDSHAKE_TIMEOUT
+            )
             logger.info(f"Model set to: {acp_model_id} (from {acp_model_input})")
         except Exception as e:
             logger.warning(f"Failed to set model via ACP: {e}")

@@ -40,6 +40,11 @@ def _capture_session_trajectory(session: ACPSession | None) -> list[dict]:
                 )
             elif event["type"] in ("user_message", "agent_message", "agent_thought"):
                 trajectory.append({"type": event["type"], "text": event["text"]})
+            elif event["type"] == "usage":
+                entry = {"type": "usage", "usage": event.get("usage", {})}
+                if "total_cost_usd" in event:
+                    entry["total_cost_usd"] = event["total_cost_usd"]
+                trajectory.append(entry)
         return trajectory
 
     # Legacy fallback: session has no event log (e.g. older agent shims
@@ -61,7 +66,36 @@ def _capture_session_trajectory(session: ACPSession | None) -> list[dict]:
         trajectory.append({"type": "agent_message", "text": session.full_message})
     if session.full_thought:
         trajectory.append({"type": "agent_thought", "text": session.full_thought})
+    for event in session.usage_events:
+        entry = {"type": "usage", "usage": event.get("usage", {})}
+        if "total_cost_usd" in event:
+            entry["total_cost_usd"] = event["total_cost_usd"]
+        trajectory.append(entry)
     return trajectory
+
+
+def summarize_trajectory_usage(
+    trajectory: list[dict],
+) -> tuple[dict[str, int] | None, float | None]:
+    """Aggregate token/cost usage events from a trajectory."""
+    usage_totals: dict[str, int] = {}
+    total_cost = 0.0
+    saw_cost = False
+    for event in trajectory:
+        if event.get("type") != "usage":
+            continue
+        usage = event.get("usage")
+        if isinstance(usage, dict):
+            for key, value in usage.items():
+                if isinstance(value, bool):
+                    continue
+                if isinstance(value, int | float):
+                    usage_totals[key] = usage_totals.get(key, 0) + int(value)
+        cost = event.get("total_cost_usd")
+        if isinstance(cost, int | float) and not isinstance(cost, bool):
+            total_cost += float(cost)
+            saw_cost = True
+    return usage_totals or None, total_cost if saw_cost else None
 
 
 async def _scrape_agent_trajectory(

@@ -49,6 +49,7 @@ from pathlib import Path
 from typing import Any
 
 from benchflow._acp_run import connect_acp, execute_prompts
+from benchflow._acpx_run import execute_prompts_with_acpx
 from benchflow._agent_env import resolve_agent_env
 from benchflow._agent_setup import (
     _link_skill_paths,
@@ -76,6 +77,7 @@ from benchflow._sandbox import (
 from benchflow._trajectory import (
     _capture_session_trajectory,
     _scrape_agent_trajectory,
+    summarize_trajectory_usage,
 )
 from benchflow._types import Role, Scene, Turn
 from benchflow.acp.client import ACPClient, ACPError
@@ -113,6 +115,11 @@ def _agent_launch_with_web_policy(agent: str, *, disallow: bool) -> str:
     if agent_cfg and agent_cfg.disallow_web_tools_launch_suffix:
         return launch + agent_cfg.disallow_web_tools_launch_suffix
     return launch
+
+
+def _agent_protocol(agent: str) -> str:
+    cfg = AGENTS.get(agent)
+    return cfg.protocol if cfg else "acp"
 
 
 def _skill_nudge(agent_env: dict[str, str] | None) -> str:
@@ -297,8 +304,8 @@ def _init_rollout(
     """Set up trial directory tree and return core trial objects."""
     from uuid import uuid4
 
-    from harbor.models.task.task import Task
-    from harbor.models.trial.paths import TrialPaths
+    from benchflow.paths import TrialPaths
+    from benchflow.task import Task
 
     task = Task(task_path)
     job_name = job_name or datetime.now().strftime("%Y-%m-%d__%H-%M-%S")
@@ -367,6 +374,8 @@ def _build_rollout_result(
     trajectory: list[dict],
     partial_trajectory: bool,
     trajectory_source: TrajectorySource | None = None,
+    token_usage: dict[str, int] | None = None,
+    total_cost_usd: float | None = None,
     rewards: dict | None,
     started_at: datetime,
     timing: dict[str, float],
@@ -382,6 +391,8 @@ def _build_rollout_result(
         agent_name=agent_name,
         model=model,
         n_tool_calls=n_tool_calls,
+        token_usage=token_usage,
+        total_cost_usd=total_cost_usd,
         n_prompts=len(prompts),
         error=error,
         verifier_error=verifier_error,
@@ -408,6 +419,8 @@ def _build_rollout_result(
                 "agent_name": result.agent_name,
                 "model": result.model,
                 "n_tool_calls": result.n_tool_calls,
+                "token_usage": result.token_usage,
+                "total_cost_usd": result.total_cost_usd,
                 "n_prompts": result.n_prompts,
                 "error": result.error,
                 "verifier_error": result.verifier_error,
@@ -510,8 +523,8 @@ async def _run_oracle(
     env: Any, task_path: Path, timeout: int, sandbox_user: str | None = None
 ) -> tuple[list[dict], str]:
     """Run oracle mode (solution/solve.sh), return (trajectory, agent_name)."""
-    from harbor.models.task.task import Task
-    from harbor.utils.env import resolve_env_vars
+    from benchflow.env import resolve_env_vars
+    from benchflow.task import Task
 
     logger.info("Oracle mode: running solution/solve.sh")
     if not (task_path / "solution" / "solve.sh").exists():
@@ -557,11 +570,11 @@ async def _verify_rollout(
     timing: dict,
     sandbox_user: str | None = None,
     workspace: str | None = None,
+    verifier_env: dict[str, str] | None = None,
 ) -> tuple[dict | None, str | None]:
     """Run verifier with pre-verification hardening."""
-    from harbor.verifier.verifier import Verifier
-
     from benchflow._sandbox import harden_before_verify
+    from benchflow.verifier import Verifier
 
     trial_paths.verifier_dir.mkdir(parents=True, exist_ok=True)
     await harden_before_verify(env, task, sandbox_user, workspace=workspace)
@@ -569,7 +582,12 @@ async def _verify_rollout(
     t0 = datetime.now()
     verifier_error = None
     try:
-        verifier = Verifier(task=task, trial_paths=trial_paths, environment=env)
+        verifier = Verifier(
+            task=task,
+            trial_paths=trial_paths,
+            environment=env,
+            extra_env=verifier_env,
+        )
         verifier_result = await asyncio.wait_for(
             verifier.verify(),
             timeout=task.config.verifier.timeout_sec,
@@ -590,11 +608,11 @@ async def _verify_rollout(
     return rewards, verifier_error
 
 
-# Apply Harbor DinD patch at import time.
+# Apply Docker DinD patch at import time.
 def _apply_dind_patch() -> None:
-    from benchflow._env_setup import _patch_harbor_dind
+    from benchflow._env_setup import _patch_docker_dind
 
-    _patch_harbor_dind()
+    _patch_docker_dind()
 
 
 _apply_dind_patch()
@@ -648,6 +666,7 @@ class RolloutConfig:
     prompts: list[str | None] | None = None
     model: str | None = None
     agent_env: dict[str, str] | None = None
+    verifier_env: dict[str, str] | None = None
     skills_dir: str | Path | None = None
     skill_mode: str = SKILL_MODE_DEFAULT
     skill_creator_dir: str | Path | None = None
@@ -765,12 +784,18 @@ class Rollout:
         self._acp_client: ACPClient | None = None
         self._session: Any = None
         self._agent_name: str = ""
+        self._connected_agent: str = ""
+        self._connected_model: str | None = None
+        self._connected_protocol: str = "acp"
+        self._connected_agent_env: dict[str, str] = {}
 
         # Populated by execute()
         self._trajectory: list[dict] = []
         self._n_tool_calls: int = 0
         self._trajectory_source: TrajectorySource | None = None
         self._partial_trajectory: bool = False
+        self._token_usage: dict[str, int] | None = None
+        self._total_cost_usd: float | None = None
 
         # Populated by verify()
         self._rewards: dict | None = None
@@ -798,6 +823,11 @@ class Rollout:
     @property
     def trajectory(self) -> list[dict]:
         return self._trajectory
+
+    def _refresh_usage_summary(self) -> None:
+        self._token_usage, self._total_cost_usd = summarize_trajectory_usage(
+            self._trajectory
+        )
 
     @property
     def timing(self) -> dict[str, float]:
@@ -1038,6 +1068,19 @@ class Rollout:
             runtime=getattr(self, "_provider_runtime", None),
             environment=cfg.environment,
         )
+        self._connected_agent = cfg.primary_agent
+        self._connected_model = cfg.primary_model
+        self._connected_protocol = _agent_protocol(cfg.primary_agent)
+        self._connected_agent_env = self._agent_env
+        if self._connected_protocol == "acpx":
+            self._acp_client = None
+            self._session = None
+            self._agent_name = cfg.primary_agent
+            if "agent_setup" not in self._timing:
+                self._timing["agent_setup"] = (datetime.now() - t0).total_seconds()
+            self._phase = "connected"
+            return
+
         self._acp_client, self._session, self._agent_name = await connect_acp(
             env=self._env,
             agent=cfg.primary_agent,
@@ -1064,13 +1107,21 @@ class Rollout:
                 logger.warning(f"ACP client close failed: {e}")
             self._acp_client = None
             self._session = None
-        # Kill any lingering agent processes to prevent context bleed between scenes
-        if self._env and self._agent_launch.strip():
+        # Kill any lingering ACP agent processes to prevent context bleed between scenes.
+        if (
+            self._env
+            and self._agent_launch.strip()
+            and getattr(self, "_connected_protocol", "acp") != "acpx"
+        ):
             agent_cmd = self._agent_launch.split()[0].split("/")[-1]
             with contextlib.suppress(Exception):
                 await self._env.exec(f"pkill -f '{agent_cmd}' || true", timeout_sec=10)
         self._session_tool_count = 0
         self._session_traj_count = 0
+        self._connected_agent = ""
+        self._connected_model = None
+        self._connected_protocol = "acp"
+        self._connected_agent_env = {}
         self._phase = "installed"
 
     # ── Phase 3c: EXECUTE ──
@@ -1083,11 +1134,39 @@ class Rollout:
         session is reused across multiple turns.
         """
         effective_prompts = prompts or self._resolved_prompts
-        if self._acp_client is None:
+        connected_protocol = getattr(self, "_connected_protocol", "acp")
+        if connected_protocol != "acpx" and self._acp_client is None:
             raise RuntimeError("Rollout.connect() must run before execute()")
         prev_session_tools = getattr(self, "_session_tool_count", 0)
         t0 = datetime.now()
 
+        if connected_protocol == "acpx":
+            trajectory, n_tool_calls, agent_name = await execute_prompts_with_acpx(
+                self._env,
+                agent=self._connected_agent or self._config.primary_agent,
+                agent_launch=self._agent_launch,
+                model=self._connected_model,
+                prompts=effective_prompts,
+                agent_env=self._connected_agent_env,
+                sandbox_user=self._config.sandbox_user,
+                timeout=self._timeout,
+                trial_dir=self._require_trial_dir(),
+                agent_cwd=self._agent_cwd,
+            )
+            if agent_name:
+                self._agent_name = agent_name
+            self._trajectory.extend(trajectory)
+            self._n_tool_calls += n_tool_calls
+            self._trajectory_source = "acpx"
+            self._refresh_usage_summary()
+            if "agent_execution" not in self._timing:
+                self._timing["agent_execution"] = (
+                    datetime.now() - t0
+                ).total_seconds()
+            self._phase = "executed"
+            return self._trajectory, self._n_tool_calls
+
+        assert self._acp_client is not None
         trajectory, n_tool_calls = await execute_prompts(
             self._acp_client,
             self._session,
@@ -1106,6 +1185,7 @@ class Rollout:
         self._trajectory.extend(new_events)
         self._n_tool_calls += new_tools
         self._trajectory_source = "acp"
+        self._refresh_usage_summary()
 
         if "agent_execution" not in self._timing:
             self._timing["agent_execution"] = (datetime.now() - t0).total_seconds()
@@ -1126,6 +1206,7 @@ class Rollout:
             if scraped:
                 self._trajectory = scraped
                 self._trajectory_source = "scraped"
+                self._refresh_usage_summary()
                 logger.warning(
                     f"Using scraped trajectory ({len(scraped)} events) — UNTRUSTED"
                 )
@@ -1137,6 +1218,7 @@ class Rollout:
             self._timing,
             sandbox_user=cfg.sandbox_user,
             workspace=self._agent_cwd,
+            verifier_env=cfg.verifier_env,
         )
 
         self._phase = "verified"
@@ -1153,9 +1235,8 @@ class Rollout:
         Returns (rewards, verifier_output, verifier_error). The final
         verify() still does full hardening.
         """
-        from harbor import Verifier
-
         from benchflow._sandbox import _build_cleanup_cmd, _read_hardening_config
+        from benchflow.verifier import Verifier
 
         self._trial_paths.verifier_dir.mkdir(parents=True, exist_ok=True)
         # Clean verifier output dir — chmod 777 so non-root verifier processes can write.
@@ -1181,6 +1262,7 @@ class Rollout:
                 task=self._task,
                 trial_paths=self._trial_paths,
                 environment=self._env,
+                extra_env=self._config.verifier_env,
             )
             verifier_result = await asyncio.wait_for(
                 verifier.verify(),
@@ -1219,6 +1301,7 @@ class Rollout:
                     self._partial_trajectory = True
                     self._trajectory_source = "partial_acp"
                     self._n_tool_calls = len(self._acp_client.session.tool_calls)
+                    self._refresh_usage_summary()
             except Exception as e:
                 logger.warning(f"Partial trajectory capture failed: {e}")
 
@@ -1701,6 +1784,19 @@ class Rollout:
             )
 
         self._agent_launch = agent_launch
+        self._connected_agent = role.agent
+        self._connected_model = role.model
+        self._connected_protocol = _agent_protocol(role.agent)
+        self._connected_agent_env = agent_env
+
+        if self._connected_protocol == "acpx":
+            self._acp_client = None
+            self._session = None
+            self._agent_name = role.agent
+            if "agent_setup" not in self._timing:
+                self._timing["agent_setup"] = (datetime.now() - t0).total_seconds()
+            self._phase = "connected"
+            return
 
         self._acp_client, self._session, self._agent_name = await connect_acp(
             env=self._env,
@@ -1755,6 +1851,8 @@ class Rollout:
             trajectory=self._trajectory,
             partial_trajectory=self._partial_trajectory,
             trajectory_source=self._trajectory_source,
+            token_usage=self._token_usage,
+            total_cost_usd=self._total_cost_usd,
             rewards=self._rewards,
             started_at=self._require_started_at(),
             timing=self._timing,

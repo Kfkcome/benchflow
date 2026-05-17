@@ -1,6 +1,8 @@
-"""Environment setup utilities: Dockerfile preprocessing, DinD patching, environment creation."""
+"""Environment setup utilities: Dockerfile preprocessing and sandbox creation."""
 
+import asyncio
 import base64
+import contextlib
 import json
 import logging
 import os
@@ -12,10 +14,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from harbor.models.task.task import Task
-from harbor.models.trial.paths import TrialPaths
-
 from benchflow.agents.registry import AGENTS
+from benchflow.env import resolve_env_vars
+from benchflow.paths import EnvironmentPaths, TrialPaths
+from benchflow.sandbox.daytona import DaytonaEnvironment
+from benchflow.sandbox.docker import DockerEnvironment, set_dind_path_rewrite
+from benchflow.task import Task
 
 logger = logging.getLogger(__name__)
 
@@ -148,12 +152,114 @@ def _modal_builder_dockerfile(
 
 def _create_benchflow_modal_environment_class():
     """Create a ModalEnvironment subclass with BenchFlow's image-build defaults."""
-    from harbor.environments.modal import ModalEnvironment
 
-    class BenchFlowModalEnvironment(ModalEnvironment):
+    class BenchFlowModalEnvironment:
+        def __init__(
+            self,
+            environment_dir: Path,
+            environment_name: str,
+            session_id: str,
+            trial_paths: TrialPaths,
+            task_env_config,
+        ) -> None:
+            self.environment_dir = environment_dir
+            self.environment_name = environment_name
+            self.session_id = session_id
+            self.trial_paths = trial_paths
+            self.task_env_config = task_env_config
+            self._registry_secret = None
+            self._secrets: list[str] = []
+            self._volumes: dict[str, str] = {}
+            self._environment_definition_path = environment_dir / "Dockerfile"
+            self._image = None
+            self._app = None
+            self._sandbox = None
+
+        @classmethod
+        def preflight(cls) -> None:
+            try:
+                import modal  # noqa: F401
+            except ImportError as e:
+                raise SystemExit(
+                    "Modal sandbox support requires the 'modal' package."
+                ) from e
+
+        async def _create_sandbox(
+            self,
+            *,
+            gpu_config,
+            secrets_config,
+            volumes_config,
+        ):
+            from modal import Sandbox
+
+            env_vars: dict[str, str | None] | None = None
+            if self.task_env_config.env:
+                env_vars = {
+                    key: value
+                    for key, value in resolve_env_vars(
+                        self.task_env_config.env
+                    ).items()
+                }
+            return await Sandbox.create.aio(
+                "bash",
+                "-lc",
+                "sleep infinity",
+                app=self._app,
+                name=self.session_id,
+                image=self._image,
+                env=env_vars,
+                secrets=secrets_config,
+                volumes=volumes_config,
+                timeout=max(int(self.task_env_config.build_timeout_sec), 300),
+                idle_timeout=300,
+                gpu=gpu_config,
+                cpu=float(self.task_env_config.cpus),
+                memory=self.task_env_config.memory_mb,
+                block_network=not self.task_env_config.allow_internet,
+            )
+
+        async def exec(self, *args, **kwargs):
+            if self._sandbox is None:
+                raise RuntimeError("Modal sandbox not started")
+
+            command = args[0] if args else kwargs.pop("command")
+            cwd = kwargs.pop("cwd", None)
+            env = kwargs.pop("env", None)
+            timeout_sec = kwargs.pop("timeout_sec", None)
+            user = kwargs.pop("user", None)
+            if kwargs:
+                raise TypeError(f"Unexpected Modal exec kwargs: {sorted(kwargs)}")
+
+            if user is not None and str(user) != "root":
+                command = (
+                    f"su -s /bin/bash {shlex.quote(str(user))} "
+                    f"-c {shlex.quote(command)}"
+                )
+
+            proc = await self._sandbox.exec.aio(
+                "bash",
+                "-lc",
+                command,
+                timeout=timeout_sec,
+                workdir=cwd,
+                env=env,
+                text=True,
+            )
+            stdout_task = asyncio.create_task(proc.stdout.read())
+            stderr_task = asyncio.create_task(proc.stderr.read())
+            return_code = await proc.wait()
+            stdout, stderr = await asyncio.gather(stdout_task, stderr_task)
+            from benchflow.sandbox.protocol import ExecResult
+
+            return ExecResult(
+                return_code=int(return_code or 0),
+                stdout=stdout or "",
+                stderr=stderr or "",
+            )
+
         async def start(self, force_build: bool) -> None:
             """Starts the Modal sandbox, adding Python for plain Linux images."""
-            from harbor.models.trial.paths import EnvironmentPaths
             from modal import App, Image, Secret, Volume
 
             def noop_cleanup_dockerfile() -> None:
@@ -191,7 +297,7 @@ def _create_benchflow_modal_environment_class():
                 )
 
             self._app = await App.lookup.aio(
-                name="__harbor__",
+                name="__benchflow__",
                 create_if_missing=True,
             )
 
@@ -201,7 +307,7 @@ def _create_benchflow_modal_environment_class():
             if self.task_env_config.gpus > 0:
                 if self.task_env_config.gpu_types:
                     if len(self.task_env_config.gpu_types) > 1:
-                        self.logger.debug(
+                        logger.debug(
                             "Multiple GPU types specified but Modal only supports one GPU "
                             "type. Using the first GPU type."
                         )
@@ -224,19 +330,101 @@ def _create_benchflow_modal_environment_class():
             finally:
                 cleanup_dockerfile()
 
-            await self._sandbox.mkdir.aio(
-                str(EnvironmentPaths.agent_dir),
-                parents=True,
-            )
-            await self._sandbox.mkdir.aio(
-                str(EnvironmentPaths.verifier_dir),
-                parents=True,
-            )
+            await self._sandbox.mkdir.aio(str(EnvironmentPaths.agent_dir), parents=True)
+            await self._sandbox.mkdir.aio(str(EnvironmentPaths.verifier_dir), parents=True)
 
             # Make log directories world-writable so non-root agents/verifiers can write to them.
-            await self.exec(
-                f"chmod 777 {EnvironmentPaths.agent_dir} {EnvironmentPaths.verifier_dir}"
-            )
+            await self.exec(f"chmod 777 {EnvironmentPaths.agent_dir} {EnvironmentPaths.verifier_dir}")
+
+        async def upload_file(
+            self,
+            source_path: Path | str | None = None,
+            target_path: str | None = None,
+            **kwargs,
+        ) -> None:
+            if self._sandbox is None:
+                raise RuntimeError("Modal sandbox not started")
+            source_path = source_path if source_path is not None else kwargs["src"]
+            target_path = target_path if target_path is not None else kwargs["dst"]
+            await self._sandbox.mkdir.aio(str(Path(target_path).parent), parents=True)
+            handle = await self._sandbox.open.aio(target_path, "wb")
+            try:
+                await handle.write(Path(source_path).read_bytes())
+                await handle.flush()
+            finally:
+                await handle.close()
+
+        async def upload_dir(
+            self,
+            source_dir: Path | str | None = None,
+            target_dir: str | None = None,
+            **kwargs,
+        ) -> None:
+            source_dir = source_dir if source_dir is not None else kwargs["src"]
+            target_dir = target_dir if target_dir is not None else kwargs["dst"]
+            with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp:
+                archive_path = Path(tmp.name)
+            try:
+                import tarfile
+
+                with tarfile.open(archive_path, "w:gz") as archive:
+                    archive.add(source_dir, arcname=".")
+                remote_archive = f"/tmp/benchflow-upload-{os.getpid()}-{archive_path.name}"
+                await self.upload_file(archive_path, remote_archive)
+                await self.exec(
+                    f"mkdir -p {shlex.quote(target_dir)} && "
+                    f"tar -xzf {shlex.quote(remote_archive)} -C {shlex.quote(target_dir)} && "
+                    f"rm -f {shlex.quote(remote_archive)}",
+                    user="root",
+                    timeout_sec=120,
+                )
+            finally:
+                with contextlib.suppress(FileNotFoundError):
+                    archive_path.unlink()
+
+        async def download_file(
+            self,
+            source_path: str | None = None,
+            target_path: Path | str | None = None,
+            **kwargs,
+        ) -> None:
+            if self._sandbox is None:
+                raise RuntimeError("Modal sandbox not started")
+            source_path = source_path if source_path is not None else kwargs["src"]
+            target_path = target_path if target_path is not None else kwargs["dst"]
+            handle = await self._sandbox.open.aio(source_path, "rb")
+            try:
+                data = await handle.read()
+            finally:
+                await handle.close()
+            target = Path(target_path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+
+        async def read_file(self, path: str) -> bytes:
+            result = await self.exec(f"cat {shlex.quote(path)}", timeout_sec=30)
+            if result.return_code != 0:
+                raise FileNotFoundError(
+                    f"read_file failed (rc={result.return_code}): {result.stderr or result.stdout}"
+                )
+            return result.stdout.encode()
+
+        async def write_file(self, path: str, content: bytes) -> None:
+            with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                tmp.write(content)
+                tmp.flush()
+                tmp_path = tmp.name
+            try:
+                await self.upload_file(tmp_path, path)
+            finally:
+                os.unlink(tmp_path)
+
+        async def stop(self, delete: bool = True) -> None:
+            if self._sandbox is None:
+                return
+            with contextlib.suppress(Exception):
+                await self._sandbox.terminate.aio(wait=delete)
+            self._sandbox = None
 
     return BenchFlowModalEnvironment
 
@@ -410,11 +598,11 @@ def _detect_dind_mount() -> tuple[str, str] | None:
         return None
 
 
-def _patch_harbor_dind() -> None:
-    """Monkey-patch Harbor's DockerEnvironmentEnvVars for DinD path translation.
+def _patch_docker_dind() -> None:
+    """Patch Docker env vars for devcontainer host path translation.
 
     When running inside a devcontainer, HOST_*_PATH env vars need to use
-    host filesystem paths, not container paths. Applied once at import time.
+    host filesystem paths, not container paths.
     """
     dind_mount = _detect_dind_mount()
     if not dind_mount:
@@ -423,28 +611,7 @@ def _patch_harbor_dind() -> None:
     host_source, container_dest = dind_mount
     logger.info(f"DinD detected: {container_dest} → {host_source}")
 
-    try:
-        from harbor.environments.docker.docker import DockerEnvironmentEnvVars
-    except ImportError:
-        return
-
-    _original = DockerEnvironmentEnvVars.to_env_dict
-
-    def _patched(self, include_os_env=True):
-        env = _original(self, include_os_env=include_os_env)
-        for key in (
-            "HOST_VERIFIER_LOGS_PATH",
-            "HOST_AGENT_LOGS_PATH",
-            "HOST_ARTIFACTS_PATH",
-        ):
-            val = env.get(key, "")
-            if val.startswith(container_dest):
-                env[key] = host_source + val[len(container_dest) :]
-        return env
-
-    # Monkey-patch Harbor's DockerEnvironmentEnvVars to rewrite host paths
-    # for DinD nesting. ty flags this as an implicit signature shadowing.
-    DockerEnvironmentEnvVars.to_env_dict = _patched  # ty: ignore[invalid-assignment]
+    set_dind_path_rewrite(host_source, container_dest)
 
 
 def _create_environment(
@@ -455,7 +622,7 @@ def _create_environment(
     trial_paths: TrialPaths,
     preserve_agent_network: bool = False,
 ) -> Any:
-    """Create a Harbor environment (Docker, Daytona, or Modal)."""
+    """Create a BenchFlow sandbox environment."""
     env_config = task.config.environment
     environment_dir = task_path / "environment"
     if not environment_dir.exists():
@@ -463,14 +630,12 @@ def _create_environment(
     if preserve_agent_network and env_config.allow_internet is False:
         # LLM agents run inside the sandbox and need outbound network for model
         # APIs and first-run agent installation. BenchFlow enforces the task's
-        # no-web policy at the agent layer instead of applying Harbor's container
+        # no-web policy at the agent layer instead of applying a container-level
         # network block for these runs.
         env_config = env_config.model_copy(deep=True)
         env_config.allow_internet = True
 
     if environment_type == "docker":
-        from harbor.environments.docker.docker import DockerEnvironment
-
         return DockerEnvironment(
             environment_dir=environment_dir,
             environment_name=task_path.name,
@@ -479,12 +644,6 @@ def _create_environment(
             task_env_config=env_config,
         )
     elif environment_type == "daytona":
-        from harbor.environments.daytona import DaytonaEnvironment
-
-        from benchflow._daytona_patches import apply as _apply_daytona_patches
-
-        _apply_daytona_patches()
-
         if env_config.cpus > _DAYTONA_MAX_CPUS:
             logger.warning(
                 "Clamping cpus %d -> %d for Daytona (override with BENCHFLOW_DAYTONA_MAX_CPUS)",
@@ -506,15 +665,13 @@ def _create_environment(
                 _DAYTONA_MAX_STORAGE_MB,
             )
             env_config.storage_mb = _DAYTONA_MAX_STORAGE_MB
-
+        DaytonaEnvironment.preflight()
         return DaytonaEnvironment(
             environment_dir=environment_dir,
             environment_name=task_path.name,
             session_id=trial_name,
             trial_paths=trial_paths,
             task_env_config=env_config,
-            auto_stop_interval_mins=1440,
-            auto_delete_interval_mins=1440,
         )
     elif environment_type == "modal":
         modal_environment_class = _create_benchflow_modal_environment_class()

@@ -1,6 +1,6 @@
 # Integration Tests
 
-On-demand end-to-end tests that run 9 SkillsBench tasks across all 8 registered agents on Daytona. Not part of CI — invoke manually to validate the full pipeline.
+On-demand end-to-end tests that run 9 SkillsBench tasks across the registered agents on Daytona. Not part of CI — invoke manually to validate the full pipeline.
 
 ## Prerequisites
 
@@ -9,12 +9,14 @@ On-demand end-to-end tests that run 9 SkillsBench tasks across all 8 registered 
 | `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) | gemini, pi-acp, openclaw, opencode, openhands |
 | `DAYTONA_API_KEY` | all agents (sandbox) |
 | `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` | claude-agent-acp |
-| `OPENAI_API_KEY` | codex-acp |
+| `OPENAI_API_KEY` | codex-acp, codex-acpx |
+
+Daytona runs require the optional native adapter extra: `uv sync --extra dev --extra daytona --locked` in a checkout, or `uv tool install 'benchflow[daytona]'` for the CLI package. Docker integration smokes run from the core install.
 
 ## Quick Start
 
 ```bash
-# All 8 agents in parallel (each runs 9 tasks concurrently on Daytona)
+# All registered agents in parallel (each runs 9 tasks concurrently on Daytona)
 export GEMINI_API_KEY=... DAYTONA_API_KEY=... CLAUDE_CODE_OAUTH_TOKEN=... OPENAI_API_KEY=...
 tests/integration/run.sh
 
@@ -79,12 +81,13 @@ The 9 tasks (3 low / 3 medium / 3 high complexity):
 
 ## Agents
 
-All 8 registered agents run by default:
+All registered agents run by default:
 
 | Agent | Default Model | Notes |
 |---|---|---|
 | claude-agent-acp | claude-haiku-4-5-20251001 | Needs `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` |
-| codex-acp | gpt-5.4-nano | Needs `OPENAI_API_KEY` |
+| codex-acp | gpt-5.4-mini/low | Needs `OPENAI_API_KEY` |
+| codex-acpx | gpt-5.4-mini/low | Needs `OPENAI_API_KEY`; runs Codex through acpx |
 | pi-acp | gemini-3.1-flash-lite-preview | |
 | openclaw | gemini-3.1-flash-lite-preview | |
 | gemini | gemini-3.1-flash-lite-preview | |

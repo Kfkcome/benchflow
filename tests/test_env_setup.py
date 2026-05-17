@@ -210,7 +210,7 @@ class TestCreateEnvironment:
             config=SimpleNamespace(environment=env_config),
         )
 
-        with patch("harbor.environments.docker.docker.DockerEnvironment") as docker_env:
+        with patch("benchflow._env_setup.DockerEnvironment") as docker_env:
             _create_environment("docker", task, effective_task, "trial", MagicMock())
 
         assert docker_env.call_args.kwargs["environment_dir"] == effective_env_dir
@@ -247,7 +247,10 @@ class TestCreateEnvironment:
             gpus=0,
             gpu_types=None,
             allow_internet=True,
+            build_timeout_sec=600,
             env={},
+            cpus=1,
+            memory_mb=2048,
         )
         modal_env_class = _create_benchflow_modal_environment_class()
         env = modal_env_class(
@@ -301,6 +304,116 @@ class TestCreateEnvironment:
             volumes_config={},
         )
         env.exec.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_modal_create_sandbox_uses_modal_sdk(self, tmp_path, monkeypatch):
+        (tmp_path / "Dockerfile").write_text("FROM ubuntu:24.04\n")
+        env_config = SimpleNamespace(
+            docker_image=None,
+            gpus=0,
+            gpu_types=None,
+            allow_internet=False,
+            build_timeout_sec=120,
+            env={"FOO": "bar"},
+            cpus=2,
+            memory_mb=4096,
+        )
+        modal_env_class = _create_benchflow_modal_environment_class()
+        env = modal_env_class(
+            environment_dir=tmp_path,
+            environment_name=tmp_path.name,
+            session_id="trial",
+            trial_paths=MagicMock(),
+            task_env_config=env_config,
+        )
+        env._app = "app"
+        env._image = "image"
+        calls = {}
+
+        class FakeCreate:
+            @staticmethod
+            async def aio(*args, **kwargs):
+                calls["args"] = args
+                calls["kwargs"] = kwargs
+                return "sandbox"
+
+        class FakeSandbox:
+            create = FakeCreate
+
+        monkeypatch.setattr("modal.Sandbox", FakeSandbox)
+
+        sandbox = await env._create_sandbox(
+            gpu_config="a10g:1",
+            secrets_config=["secret"],
+            volumes_config={"/mnt": "volume"},
+        )
+
+        assert sandbox == "sandbox"
+        assert calls["args"] == ("bash", "-lc", "sleep infinity")
+        assert calls["kwargs"]["app"] == "app"
+        assert calls["kwargs"]["image"] == "image"
+        assert calls["kwargs"]["env"] == {"FOO": "bar"}
+        assert calls["kwargs"]["secrets"] == ["secret"]
+        assert calls["kwargs"]["volumes"] == {"/mnt": "volume"}
+        assert calls["kwargs"]["gpu"] == "a10g:1"
+        assert calls["kwargs"]["cpu"] == 2.0
+        assert calls["kwargs"]["memory"] == 4096
+        assert calls["kwargs"]["block_network"] is True
+
+    @pytest.mark.asyncio
+    async def test_modal_exec_returns_exec_result(self, tmp_path):
+        env_config = SimpleNamespace(
+            docker_image=None,
+            gpus=0,
+            gpu_types=None,
+            allow_internet=True,
+            build_timeout_sec=600,
+            env={},
+            cpus=1,
+            memory_mb=2048,
+        )
+        modal_env_class = _create_benchflow_modal_environment_class()
+        env = modal_env_class(
+            environment_dir=tmp_path,
+            environment_name=tmp_path.name,
+            session_id="trial",
+            trial_paths=MagicMock(),
+            task_env_config=env_config,
+        )
+        calls = {}
+
+        class FakeStream:
+            def __init__(self, text):
+                self.text = text
+
+            async def read(self):
+                return self.text
+
+        class FakeProc:
+            stdout = FakeStream("out")
+            stderr = FakeStream("err")
+
+            async def wait(self):
+                return 7
+
+        class FakeExec:
+            @staticmethod
+            async def aio(*args, **kwargs):
+                calls["args"] = args
+                calls["kwargs"] = kwargs
+                return FakeProc()
+
+        env._sandbox = SimpleNamespace(exec=FakeExec)
+
+        result = await env.exec("echo hi", user="agent", cwd="/app", env={"A": "B"})
+
+        assert result.return_code == 7
+        assert result.stdout == "out"
+        assert result.stderr == "err"
+        assert calls["args"][:2] == ("bash", "-lc")
+        assert "su -s /bin/bash agent" in calls["args"][2]
+        assert calls["kwargs"]["workdir"] == "/app"
+        assert calls["kwargs"]["env"] == {"A": "B"}
 
     def test_modal_add_python_skips_python_base(self, tmp_path):
         dockerfile = tmp_path / "Dockerfile"

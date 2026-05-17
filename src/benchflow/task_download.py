@@ -4,8 +4,9 @@ Datasets are referenced with two fields (inspired by Vercel's project config):
 
     source:
       repo: org/repo          # GitHub repository (org/repo)
-      path: sub/dir           # optional subpath within the repo
-      ref: main               # optional branch/tag (default: repo default)
+      hf: org/dataset         # HuggingFace dataset repo (alternative to repo)
+      path: sub/dir           # optional subpath within the source
+      ref: main               # optional branch/tag/revision
 
 The repo is cloned once into ``.cache/datasets/org/repo/`` and reused on
 subsequent calls.
@@ -46,6 +47,65 @@ def _repo_root() -> Path:
 def _cache_dir() -> Path:
     """Return the local cache directory for cloned dataset repos."""
     return _repo_root() / ".cache" / "datasets"
+
+
+def _clean_subpath(path: str) -> str:
+    """Normalize a source subpath and reject paths that can escape the cache."""
+    rel = Path(path)
+    if rel.is_absolute() or ".." in rel.parts:
+        raise ValueError(f"Invalid source path: {path!r}")
+    return rel.as_posix().strip("/")
+
+
+def _is_hf_ref(repo: str) -> bool:
+    return repo.startswith(("hf://", "huggingface://"))
+
+
+def _normalize_hf_repo_id(repo_id: str) -> str:
+    """Return an HF dataset repo id from supported CLI/YAML spellings."""
+    for prefix in ("hf://", "huggingface://"):
+        if repo_id.startswith(prefix):
+            repo_id = repo_id[len(prefix) :]
+            break
+    repo_id = repo_id.removeprefix("datasets/")
+    parts = repo_id.split("/", 1)
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(
+            f"Invalid HuggingFace dataset repo: {repo_id!r}. "
+            "Expected 'org/dataset' (or 'hf://org/dataset')."
+        )
+    return repo_id
+
+
+def _hf_cache_dir(repo_id: str) -> Path:
+    org, dataset = repo_id.split("/", 1)
+    return _cache_dir() / "huggingface" / org / dataset
+
+
+def _snapshot_download_hf(
+    *,
+    repo_id: str,
+    local_dir: Path,
+    revision: str | None,
+    allow_patterns: list[str] | None,
+) -> Path:
+    try:
+        from huggingface_hub import snapshot_download  # ty: ignore[unresolved-import]
+    except ImportError as exc:
+        raise RuntimeError(
+            "HuggingFace task sources require the optional 'hf' extra. "
+            "Install with: uv tool install 'benchflow[hf]' or pip install 'benchflow[hf]'"
+        ) from exc
+
+    local_dir.mkdir(parents=True, exist_ok=True)
+    downloaded = snapshot_download(
+        repo_id=repo_id,
+        repo_type="dataset",
+        revision=revision,
+        allow_patterns=allow_patterns,
+        local_dir=str(local_dir),
+    )
+    return Path(downloaded)
 
 
 def _clone_repo(org: str, repo: str, ref: str | None = None) -> Path:
@@ -104,13 +164,17 @@ def resolve_source(repo: str, path: str | None = None, ref: str | None = None) -
     """Resolve a dataset source to a local filesystem path.
 
     Args:
-        repo: GitHub repository as ``org/repo`` (e.g. ``benchflow-ai/benchmarks``).
-        path: Optional subpath within the repo (e.g. ``terminal-bench-2``).
-        ref: Optional branch or tag to clone (e.g. ``main``, ``v2.0``).
+        repo: GitHub repository as ``org/repo`` (e.g. ``benchflow-ai/benchmarks``)
+            or HuggingFace dataset repo with ``hf://``/``huggingface://`` prefix.
+        path: Optional subpath within the source (e.g. ``terminal-bench-2``).
+        ref: Optional branch, tag, or revision (e.g. ``main``, ``v2.0``).
 
     Returns:
         Path to the resolved directory on the local filesystem.
     """
+    if _is_hf_ref(repo):
+        return resolve_hf_source(repo, path=path, ref=ref)
+
     parts = repo.split("/", 1)
     if len(parts) != 2:
         raise ValueError(
@@ -125,6 +189,31 @@ def resolve_source(repo: str, path: str | None = None, ref: str | None = None) -
             raise FileNotFoundError(
                 f"Path {path!r} not found in {org}/{repo_name}. "
                 f"Available: {[p.name for p in root.iterdir() if p.is_dir() and p.name != '.git']}"
+            )
+        return target
+    return root
+
+
+def resolve_hf_source(
+    repo_id: str, path: str | None = None, ref: str | None = None
+) -> Path:
+    """Resolve a HuggingFace dataset repository to a local filesystem path."""
+    normalized_repo = _normalize_hf_repo_id(repo_id)
+    normalized_path = _clean_subpath(path) if path else None
+    allow_patterns = [f"{normalized_path}/**"] if normalized_path else None
+    root = _snapshot_download_hf(
+        repo_id=normalized_repo,
+        local_dir=_hf_cache_dir(normalized_repo),
+        revision=ref,
+        allow_patterns=allow_patterns,
+    )
+
+    if normalized_path:
+        target = root / normalized_path
+        if not target.exists():
+            raise FileNotFoundError(
+                f"Path {normalized_path!r} not found in HuggingFace dataset "
+                f"{normalized_repo}."
             )
         return target
     return root

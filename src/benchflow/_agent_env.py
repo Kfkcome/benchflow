@@ -109,6 +109,8 @@ def auto_inherit_env(
         "CLAUDE_CODE_OAUTH_TOKEN",
         "OPENAI_API_KEY",
         "OPENAI_BASE_URL",
+        "BENCHFLOW_PROVIDER_API_KEY",
+        "BENCHFLOW_PROVIDER_BASE_URL",
         "GOOGLE_API_KEY",
         "GEMINI_API_KEY",
         "GOOGLE_GENERATIVE_AI_API_KEY",
@@ -275,9 +277,10 @@ def resolve_agent_env(
     model: str | None,
     agent_env: dict[str, str] | None,
 ) -> dict[str, str]:
-    """Resolve agent environment from explicit overrides, then .env defaults."""
+    """Resolve agent environment from explicit overrides, host env, then .env."""
     agent_env = dict(agent_env or {})
     explicit_agent_env_keys = set(agent_env)
+    auto_inherit_env(agent_env)
     auto_inherit_env(agent_env, source_env=load_dotenv_env())
     pre_provider_env = dict(agent_env)
     agent_cfg = AGENTS.get(agent)

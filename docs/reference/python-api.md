@@ -275,6 +275,7 @@ result = await bf.run(config)
 | `gemini` | ACP | GOOGLE_API_KEY | — |
 | `claude-agent-acp` | ACP | ANTHROPIC_API_KEY | `claude` |
 | `codex-acp` | ACP | OPENAI_API_KEY | `codex` |
+| `codex-acpx` | acpx | OPENAI_API_KEY | `acpx-codex` |
 | `opencode` | ACP | inferred from model/provider | — |
 | `openhands` | ACP | LLM_API_KEY | `oh` |
 | `pi-acp` | ACP | ANTHROPIC_API_KEY | `pi` |

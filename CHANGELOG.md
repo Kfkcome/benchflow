@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+## 0.4.0 — 2026-05-17
+
+### Added
+
+- **Rollout/Scene runtime** — v0.4 execution path with separated rollout,
+  runtime, task, env, verifier, and path primitives.
+- **ACP + acpx support** — native ACP execution remains supported and
+  `codex-acpx` runs Codex through acpx's headless ACP client.
+- **Native sandbox adapters** — BenchFlow-owned Docker, Daytona, and Modal
+  environment adapters; Harbor is no longer a dependency.
+- **Managed agent registry** — custom agents can be loaded from YAML via
+  `BENCHFLOW_AGENT_REGISTRY`; `.agents/skills/agent-creator` documents the
+  contribution workflow.
+- **First-class rubric/judge rewards** — `--judge`, YAML `judge`, rubric reward
+  events, LLM judge plumbing, token usage, and cost fields in results.
+- **Task-source expansion** — GitHub sources, HuggingFace dataset sources
+  (`--source-hf`, `source.hf`, `hf://...`), and trace-to-task generation with
+  `bench tasks generate`.
+- **Docs single-source tooling** — `scripts/export_docs_to_website.py` derives
+  website MDX from `benchflow/docs`.
+
+### Changed
+
+- `bench eval create` is the primary CLI path; legacy `bench run` remains hidden
+  and deprecated.
+- Cloud adapters are optional extras: `benchflow[daytona]`, `benchflow[modal]`,
+  and `benchflow[hf]`.
+- Integration configs now include `codex-acpx` and the docs use full-length CLI
+  flags only.
+
+### Fixed
+
+- ACP connect/initialize now has bounded timeout handling.
+- Provider env inheritance includes OpenAI-compatible base URL/API key settings.
+- Agent install happens before hard no-internet policy so network-restricted
+  tasks can still install managed agents.
+- Harvey LAB harness installs into a venv on Ubuntu 24.04.
+- Codex docs/configs avoid unavailable `gpt-5.4-nano` defaults.
+
 ## 0.3.3 — 2026-05-15
 
 ### Added

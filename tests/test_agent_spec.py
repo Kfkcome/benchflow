@@ -30,6 +30,10 @@ class TestParseAgentSpec:
     def test_alias_codex(self):
         assert parse_agent_spec("codex") == ("acp", "codex-acp")
 
+    def test_alias_acpx_codex(self):
+        assert parse_agent_spec("acpx-codex") == ("acp", "codex-acpx")
+        assert parse_agent_spec("acpx/codex") == ("acpx", "codex-acp")
+
     def test_alias_gemini(self):
         assert parse_agent_spec("gemini") == ("acp", "gemini")
 
@@ -55,6 +59,16 @@ class TestResolveAgent:
     def test_resolve_with_protocol(self):
         config = resolve_agent("acp/codex-acp")
         assert config.name == "codex-acp"
+
+    def test_resolve_acpx_agent(self):
+        config = resolve_agent("acpx-codex")
+        assert config.name == "codex-acpx"
+        assert config.protocol == "acpx"
+
+    def test_resolve_acpx_protocol_alias(self):
+        config = resolve_agent("acpx/codex")
+        assert config.name == "codex-acpx"
+        assert config.protocol == "acpx"
 
     def test_resolve_harbor_agent(self):
         config = resolve_agent("harbor/claude-code")

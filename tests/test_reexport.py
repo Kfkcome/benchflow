@@ -1,19 +1,19 @@
-"""Verify Harbor re-exports and benchflow additions work."""
+"""Verify top-level benchflow exports."""
 
 
-def test_harbor_reexports():
-    """Harbor classes should be importable from benchflow."""
+def test_task_model_reexports_are_benchflow_native():
+    """Task classes should be BenchFlow-owned, not framework re-exports."""
     from benchflow import (
-        BaseEnvironment,
+        Task,
         TaskConfig,
     )
 
-    assert TaskConfig.__module__.startswith("harbor")
-    assert BaseEnvironment.__module__.startswith("harbor")
+    assert Task.__module__ == "benchflow.task"
+    assert TaskConfig.__module__ == "benchflow.task"
 
 
 def test_benchflow_job_shadows_harbor():
-    """benchflow.Job is benchflow's own Job, not Harbor's."""
+    """benchflow.Job is benchflow's own Evaluation alias."""
     from benchflow import Job
 
     assert Job.__module__ in ("benchflow.job", "benchflow.evaluation")

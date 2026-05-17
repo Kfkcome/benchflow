@@ -132,7 +132,7 @@ echo "1.0" > /logs/verifier/reward.txt
     if not no_pytest:
         (
             tests_dir / "test_outputs.py"
-        ).write_text("""\"\"\"Pytest-based verifier. Run by Harbor after agent completes.\"\"\"
+        ).write_text("""\"\"\"Pytest-based verifier. Run by BenchFlow after agent completes.\"\"\"
 
 def test_placeholder():
     # Replace with actual verification logic

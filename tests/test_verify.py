@@ -107,7 +107,7 @@ class TestSdkVerify:
         mock_v = MagicMock()
         mock_v.verify = lambda: asyncio.sleep(10)
         timing = {}
-        with patch("harbor.verifier.verifier.Verifier", return_value=mock_v):
+        with patch("benchflow.verifier.Verifier", return_value=mock_v):
             rewards, verifier_error = await sdk._verify(env, task, tp, timing)
         assert rewards is None
         assert "timed out" in verifier_error
@@ -119,7 +119,7 @@ class TestSdkVerify:
         mock_v = MagicMock()
         mock_v.verify = AsyncMock(side_effect=RuntimeError("kaboom"))
         timing = {}
-        with patch("harbor.verifier.verifier.Verifier", return_value=mock_v):
+        with patch("benchflow.verifier.Verifier", return_value=mock_v):
             rewards, verifier_error = await sdk._verify(env, task, tp, timing)
         assert rewards is None
         assert "crashed" in verifier_error and "kaboom" in verifier_error
@@ -132,10 +132,124 @@ class TestSdkVerify:
         mock_v = MagicMock()
         mock_v.verify = AsyncMock(return_value=mock_result)
         timing = {}
-        with patch("harbor.verifier.verifier.Verifier", return_value=mock_v):
+        with patch("benchflow.verifier.Verifier", return_value=mock_v):
             rewards, verifier_error = await sdk._verify(env, task, tp, timing)
         assert rewards == {"reward": 1.0}
         assert verifier_error is None
+
+    @pytest.mark.asyncio
+    async def test_verifier_env_forwarded(self, verify_harness):
+        sdk, env, task, tp = verify_harness
+        mock_result = MagicMock()
+        mock_result.rewards = {"reward": 1.0}
+        mock_v = MagicMock()
+        mock_v.verify = AsyncMock(return_value=mock_result)
+        timing = {}
+        with patch("benchflow.verifier.Verifier", return_value=mock_v) as verifier_cls:
+            rewards, verifier_error = await sdk._verify(
+                env, task, tp, timing, verifier_env={"JUDGE_MODEL": "judge-test"}
+            )
+
+        assert rewards == {"reward": 1.0}
+        assert verifier_error is None
+        assert verifier_cls.call_args.kwargs["extra_env"] == {
+            "JUDGE_MODEL": "judge-test"
+        }
+
+
+class TestVerifierRewardDetails:
+    @pytest.mark.asyncio
+    async def test_extra_env_overrides_task_verifier_env(self, tmp_path):
+        """Guards --judge plumbing into verifier subprocess environment."""
+        from benchflow.paths import TrialPaths
+        from benchflow.verifier import Verifier
+
+        tests_dir = tmp_path / "tests"
+        tests_dir.mkdir()
+        test_path = tests_dir / "test.sh"
+        test_path.write_text("#!/bin/sh\n")
+
+        trial_paths = TrialPaths(tmp_path / "trial")
+        trial_paths.mkdir()
+        trial_paths.reward_text_path.write_text("1.0\n")
+
+        task = MagicMock()
+        task.paths.tests_dir = tests_dir
+        task.paths.test_path = test_path
+        task.config.verifier.env = {"JUDGE_MODEL": "task-default", "KEEP": "yes"}
+        task.config.verifier.user = None
+
+        env = MagicMock()
+        env.is_mounted = True
+        env.upload_dir = AsyncMock()
+        env.exec = AsyncMock(return_value=MagicMock(stdout="", stderr="", exit_code=0))
+
+        verifier = Verifier(
+            task=task,
+            trial_paths=trial_paths,
+            environment=env,
+            extra_env={"JUDGE_MODEL": "cli-override"},
+        )
+
+        result = await verifier.verify()
+
+        assert result.rewards == {"reward": 1.0}
+        run_call = env.exec.await_args_list[1]
+        assert run_call.kwargs["env"] == {
+            "JUDGE_MODEL": "cli-override",
+            "KEEP": "yes",
+        }
+
+    def test_evaluation_details_are_lifted_into_rubric_rewards(self, tmp_path):
+        """Guards the Harvey LAB evaluator detail bridge for rewards.jsonl output."""
+        from benchflow.paths import TrialPaths
+        from benchflow.verifier import Verifier
+
+        trial_paths = TrialPaths(tmp_path)
+        trial_paths.verifier_dir.mkdir(parents=True)
+        (trial_paths.verifier_dir / "evaluation_details.json").write_text(
+            json.dumps(
+                {
+                    "results": [
+                        {
+                            "id": "legal-citation",
+                            "title": "Legal citation",
+                            "verdict": "PASS",
+                            "reasoning": "Found the required citation.",
+                        },
+                        {
+                            "id": "format",
+                            "title": "Format",
+                            "verdict": "FAIL",
+                            "reasoning": "Wrong heading style.",
+                        },
+                    ]
+                }
+            )
+        )
+
+        verifier = Verifier.__new__(Verifier)
+        verifier._trial_paths = trial_paths
+
+        rewards = verifier._merge_evaluation_details({"reward": 0.5})
+
+        assert rewards["details"]["results"][0]["id"] == "legal-citation"
+        assert rewards["rubric"] == [
+            {
+                "name": "legal-citation",
+                "score": 1.0,
+                "title": "Legal citation",
+                "verdict": "PASS",
+                "reasoning": "Found the required citation.",
+            },
+            {
+                "name": "format",
+                "score": 0.0,
+                "title": "Format",
+                "verdict": "FAIL",
+                "reasoning": "Wrong heading style.",
+            },
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +540,7 @@ class TestTrajectorySource:
         "source,partial,expected_source,expected_partial",
         [
             ("acp", False, "acp", False),
+            ("acpx", False, "acpx", False),
             ("scraped", False, "scraped", False),
             ("partial_acp", True, "partial_acp", True),
             (None, False, None, False),
@@ -437,6 +552,19 @@ class TestTrajectorySource:
         data = build_result_json(trajectory_source=source, partial_trajectory=partial)
         assert data["trajectory_source"] == expected_source
         assert data["partial_trajectory"] == expected_partial
+
+    def test_token_usage_in_result_json(self, build_result_json):
+        data = build_result_json(
+            token_usage={"input_tokens": 12, "output_tokens": 3, "total_tokens": 15},
+            total_cost_usd=0.002,
+        )
+
+        assert data["token_usage"] == {
+            "input_tokens": 12,
+            "output_tokens": 3,
+            "total_tokens": 15,
+        }
+        assert data["total_cost_usd"] == 0.002
 
 
 class TestScrapedTrajectoryTrust:

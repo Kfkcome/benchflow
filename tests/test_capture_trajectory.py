@@ -134,6 +134,40 @@ class TestCaptureSessionTrajectory:
         types = [e["type"] for e in result]
         assert types == ["tool_call", "agent_thought", "agent_message"]
 
+    def test_captures_usage_events(self) -> None:
+        session = ACPSession("s1")
+        session.handle_update(
+            {
+                "sessionUpdate": "agent_message_chunk",
+                "content": {"type": "text", "text": "done"},
+                "usage": {
+                    "inputTokens": 10,
+                    "outputTokens": 4,
+                    "totalTokens": 14,
+                },
+                "total_cost_usd": 0.001,
+            }
+        )
+
+        result = _capture_session_trajectory(session)
+        assert result == [
+            {"type": "agent_message", "text": "done"},
+            {
+                "type": "usage",
+                "usage": {
+                    "input_tokens": 10,
+                    "output_tokens": 4,
+                    "total_tokens": 14,
+                },
+                "total_cost_usd": 0.001,
+            },
+        ]
+        assert session.usage_summary() == {
+            "input_tokens": 10,
+            "output_tokens": 4,
+            "total_tokens": 14,
+        }
+
 
 class TestUserMessageRecording:
     """Verify that user prompts appear in the trajectory (issue #745)."""

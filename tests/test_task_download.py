@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from benchflow import task_download
-from benchflow.task_download import Source, resolve_source
+from benchflow.task_download import Source, resolve_hf_source, resolve_source
 
 
 def test_skillsbench_alias_clones_main_branch(tmp_path, monkeypatch):
@@ -183,3 +183,102 @@ def test_source_dataclass_resolve(tmp_path, monkeypatch):
         == tmp_path / ".cache" / "datasets" / "benchflow-ai" / "benchmarks" / "tb2"
     )
     assert target.exists()
+
+
+def test_resolve_hf_source_downloads_dataset_subpath(tmp_path, monkeypatch):
+    """HuggingFace task sources use snapshot_download with dataset semantics."""
+    monkeypatch.chdir(tmp_path)
+    calls = []
+
+    def fake_snapshot_download_hf(
+        *, repo_id, local_dir, revision, allow_patterns
+    ) -> Path:
+        calls.append(
+            {
+                "repo_id": repo_id,
+                "local_dir": local_dir,
+                "revision": revision,
+                "allow_patterns": allow_patterns,
+            }
+        )
+        target = local_dir / "tasks" / "sample-task"
+        target.mkdir(parents=True)
+        (target / "task.toml").write_text("[task]\n")
+        return local_dir
+
+    monkeypatch.setattr(
+        task_download, "_snapshot_download_hf", fake_snapshot_download_hf
+    )
+
+    target = resolve_hf_source(
+        "benchflow/skillsbench", path="tasks/sample-task", ref="main"
+    )
+
+    assert (
+        target
+        == tmp_path
+        / ".cache"
+        / "datasets"
+        / "huggingface"
+        / "benchflow"
+        / "skillsbench"
+        / "tasks"
+        / "sample-task"
+    )
+    assert target.exists()
+    assert calls == [
+        {
+            "repo_id": "benchflow/skillsbench",
+            "local_dir": tmp_path
+            / ".cache"
+            / "datasets"
+            / "huggingface"
+            / "benchflow"
+            / "skillsbench",
+            "revision": "main",
+            "allow_patterns": ["tasks/sample-task/**"],
+        }
+    ]
+
+
+def test_resolve_source_accepts_hf_scheme(tmp_path, monkeypatch):
+    """resolve_source can route hf:// sources for Python callers and configs."""
+    monkeypatch.chdir(tmp_path)
+
+    def fake_snapshot_download_hf(
+        *, repo_id, local_dir, revision, allow_patterns
+    ) -> Path:
+        assert repo_id == "benchflow/skillsbench"
+        assert revision is None
+        assert allow_patterns == ["tasks/**"]
+        (local_dir / "tasks" / "task-a").mkdir(parents=True)
+        return local_dir
+
+    monkeypatch.setattr(
+        task_download, "_snapshot_download_hf", fake_snapshot_download_hf
+    )
+
+    target = resolve_source("hf://benchflow/skillsbench", path="tasks")
+
+    assert (
+        target
+        == tmp_path
+        / ".cache"
+        / "datasets"
+        / "huggingface"
+        / "benchflow"
+        / "skillsbench"
+        / "tasks"
+    )
+
+
+def test_resolve_hf_source_rejects_escaping_subpath(tmp_path, monkeypatch):
+    """HuggingFace source subpaths stay inside the downloaded dataset root."""
+    monkeypatch.chdir(tmp_path)
+
+    try:
+        resolve_hf_source("benchflow/skillsbench", path="../tasks")
+    except ValueError as exc:
+        assert "Invalid source path" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError")

@@ -39,6 +39,27 @@ def _parse_agent_env(entries: list[str] | None) -> dict[str, str]:
     return parsed
 
 
+def _resolve_remote_source(
+    *,
+    source_repo: str | None,
+    source_hf: str | None,
+    source_path: str | None,
+    source_ref: str | None,
+) -> Path | None:
+    if source_repo and source_hf:
+        console.print("[red]Use only one of --source-repo or --source-hf[/red]")
+        raise typer.Exit(1)
+    if source_hf:
+        from benchflow.task_download import resolve_hf_source
+
+        return resolve_hf_source(source_hf, path=source_path, ref=source_ref)
+    if source_repo:
+        from benchflow.task_download import resolve_source
+
+        return resolve_source(source_repo, path=source_path, ref=source_ref)
+    return None
+
+
 @app.command(hidden=True, deprecated=True)
 def run(
     task_dir: Annotated[
@@ -52,10 +73,17 @@ def run(
             help="Remote repo as org/repo (e.g. benchflow-ai/skillsbench)",
         ),
     ] = None,
+    source_hf: Annotated[
+        str | None,
+        typer.Option(
+            "--source-hf",
+            help="HuggingFace dataset repo as org/dataset (e.g. benchflow/skillsbench)",
+        ),
+    ] = None,
     source_path: Annotated[
         str | None,
         typer.Option(
-            "--source-path", help="Subpath within the repo (e.g. tasks/edit-pdf)"
+            "--source-path", help="Subpath within the source (e.g. tasks/edit-pdf)"
         ),
     ] = None,
     source_ref: Annotated[
@@ -76,9 +104,7 @@ def run(
     ] = "docker",
     prompt: Annotated[
         list[str] | None,
-        typer.Option(
-            "--prompt", help="Prompt(s) to send (default: instruction.md)"
-        ),
+        typer.Option("--prompt", help="Prompt(s) to send (default: instruction.md)"),
     ] = None,
     jobs_dir: Annotated[
         str,
@@ -90,9 +116,7 @@ def run(
     ] = None,
     skills_dir: Annotated[
         Path | None,
-        typer.Option(
-            "--skills-dir", help="Skills directory to deploy into sandbox"
-        ),
+        typer.Option("--skills-dir", help="Skills directory to deploy into sandbox"),
     ] = None,
     skill_mode: Annotated[
         str,
@@ -127,20 +151,25 @@ def run(
 
     Examples:
         bench run --source-repo benchflow-ai/skillsbench --source-path tasks/edit-pdf
+        bench run --source-hf benchflow/skillsbench --source-path tasks/edit-pdf
         bench run tasks/edit-pdf --agent gemini --model gemini-3.1-flash-lite-preview
     """
     from benchflow.sdk import SDK
 
-    if source_repo:
-        from benchflow.task_download import resolve_source
-
-        resolved_task_dir = resolve_source(
-            source_repo, path=source_path, ref=source_ref
-        )
+    resolved_remote = _resolve_remote_source(
+        source_repo=source_repo,
+        source_hf=source_hf,
+        source_path=source_path,
+        source_ref=source_ref,
+    )
+    if resolved_remote:
+        resolved_task_dir = resolved_remote
     elif task_dir:
         resolved_task_dir = task_dir
     else:
-        console.print("[red]Provide a task directory or --source-repo[/red]")
+        console.print(
+            "[red]Provide a task directory, --source-repo, or --source-hf[/red]"
+        )
         raise typer.Exit(1)
 
     parsed_env = _parse_agent_env(agent_env)
@@ -183,9 +212,7 @@ def job(
     ] = None,
     config_file: Annotated[
         Path | None,
-        typer.Option(
-            "--config", help="YAML config file (Harbor or benchflow format)"
-        ),
+        typer.Option("--config", help="YAML config file (Harbor or benchflow format)"),
     ] = None,
     agent: Annotated[
         str,
@@ -213,9 +240,7 @@ def job(
     ] = "jobs",
     skills_dir: Annotated[
         Path | None,
-        typer.Option(
-            "--skills-dir", help="Skills directory to deploy into sandbox"
-        ),
+        typer.Option("--skills-dir", help="Skills directory to deploy into sandbox"),
     ] = None,
 ) -> None:
     """Run all tasks in a directory with concurrency and retries.
@@ -374,6 +399,10 @@ def eval(
         str | None,
         typer.Option("--model", help="Model"),
     ] = None,
+    judge: Annotated[
+        str | None,
+        typer.Option("--judge", help="Judge model for rubric/verifier tasks"),
+    ] = None,
     environment: Annotated[
         str,
         typer.Option("--sandbox", help="Sandbox: docker, daytona, or modal"),
@@ -409,6 +438,7 @@ def eval(
         config=JobConfig(
             agent=agent,
             model=effective_model(agent, model),
+            judge=judge,
             environment=environment,
             concurrency=concurrency,
             skills_dir=effective_skills,
@@ -597,6 +627,15 @@ tasks_app = typer.Typer(help="Task authoring commands")
 app.add_typer(tasks_app, name="tasks")
 
 
+def _register_trace_commands() -> None:
+    from benchflow.cli.trace_import import register_tasks_generate
+
+    register_tasks_generate(tasks_app)
+
+
+_register_trace_commands()
+
+
 @tasks_app.command("init")
 def tasks_init(
     name: Annotated[str, typer.Argument(help="Task name")],
@@ -730,6 +769,8 @@ def agent_list() -> None:
     """List all registered agents."""
     from benchflow.agents.registry import AGENT_ALIASES, list_agents
 
+    agents = list_agents()
+
     # Build reverse map: canonical name -> list of aliases
     reverse_aliases: dict[str, list[str]] = {}
     for alias, canonical in AGENT_ALIASES.items():
@@ -743,7 +784,7 @@ def agent_list() -> None:
     table.add_column("Protocol", style="green")
     table.add_column("Requires", style="yellow")
 
-    for a in list_agents():
+    for a in agents:
         sub_env = a.subscription_auth.replaces_env if a.subscription_auth else None
         requires = [f"{e} (or login)" if e == sub_env else e for e in a.requires_env]
         aliases = ", ".join(sorted(reverse_aliases.get(a.name, [])))
@@ -757,13 +798,13 @@ def agent_show(
     name: Annotated[str, typer.Argument(help="Agent name")],
 ) -> None:
     """Show details for a registered agent."""
-    from benchflow.agents.registry import AGENT_ALIASES, AGENTS
+    from benchflow.agents.registry import AGENT_ALIASES, resolve_agent
 
-    resolved = AGENT_ALIASES.get(name, name)
-    cfg = AGENTS.get(resolved)
-    if not cfg:
+    try:
+        cfg = resolve_agent(name)
+    except KeyError:
         console.print(f"[red]Unknown agent: {name}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     # Collect aliases that point to this agent
     aliases = sorted(
@@ -804,9 +845,16 @@ def eval_create(
             help="Remote repo as org/repo (e.g. benchflow-ai/skillsbench)",
         ),
     ] = None,
+    source_hf: Annotated[
+        str | None,
+        typer.Option(
+            "--source-hf",
+            help="HuggingFace dataset repo as org/dataset (e.g. benchflow/skillsbench)",
+        ),
+    ] = None,
     source_path: Annotated[
         str | None,
-        typer.Option("--source-path", help="Subpath within the repo (e.g. tasks)"),
+        typer.Option("--source-path", help="Subpath within the source (e.g. tasks)"),
     ] = None,
     source_ref: Annotated[
         str | None,
@@ -819,6 +867,10 @@ def eval_create(
     model: Annotated[
         str | None,
         typer.Option("--model", help="Model"),
+    ] = None,
+    judge: Annotated[
+        str | None,
+        typer.Option("--judge", help="Judge model for rubric/verifier tasks"),
     ] = None,
     environment: Annotated[
         str,
@@ -877,21 +929,26 @@ def eval_create(
     from benchflow.job import Job, JobConfig
 
     parsed_env = _parse_agent_env(agent_env)
+    verifier_env = {"JUDGE_MODEL": judge} if judge else None
 
     if config_file:
         j = Job.from_yaml(config_file)
         j._config.agent_env = {**j._config.agent_env, **parsed_env}
+        if judge:
+            j._config.judge = judge
         result = asyncio.run(j.run())
         console.print(
             f"\n[bold]Score: {result.passed}/{result.total} "
             f"({result.score:.1%})[/bold], errors={result.errored}"
         )
-    elif source_repo:
-        from benchflow.task_download import resolve_source
-
-        resolved_tasks_dir = resolve_source(
-            source_repo, path=source_path, ref=source_ref
+    elif source_repo or source_hf:
+        resolved_tasks_dir = _resolve_remote_source(
+            source_repo=source_repo,
+            source_hf=source_hf,
+            source_path=source_path,
+            source_ref=source_ref,
         )
+        assert resolved_tasks_dir is not None
         eff_model = effective_model(agent, model)
         # Smart detection: if tasks_dir has task.toml, it's a single task
         if (resolved_tasks_dir / "task.toml").exists():
@@ -907,6 +964,7 @@ def eval_create(
                     jobs_dir=jobs_dir,
                     environment=environment,
                     agent_env=parsed_env,
+                    verifier_env=verifier_env,
                     skills_dir=str(skills_dir) if skills_dir else None,
                     sandbox_user=sandbox_user,
                     sandbox_setup_timeout=sandbox_setup_timeout,
@@ -936,6 +994,7 @@ def eval_create(
                     environment=environment,
                     concurrency=concurrency,
                     agent_env=parsed_env,
+                    judge=judge,
                     sandbox_user=sandbox_user,
                     sandbox_setup_timeout=sandbox_setup_timeout,
                     skills_dir=str(skills_dir) if skills_dir else None,
@@ -968,6 +1027,7 @@ def eval_create(
                     jobs_dir=jobs_dir,
                     environment=environment,
                     agent_env=parsed_env,
+                    verifier_env=verifier_env,
                     skills_dir=str(skills_dir) if skills_dir else None,
                     sandbox_user=sandbox_user,
                     sandbox_setup_timeout=sandbox_setup_timeout,
@@ -997,6 +1057,7 @@ def eval_create(
                     environment=environment,
                     concurrency=concurrency,
                     agent_env=parsed_env,
+                    judge=judge,
                     sandbox_user=sandbox_user,
                     sandbox_setup_timeout=sandbox_setup_timeout,
                     skills_dir=str(skills_dir) if skills_dir else None,
@@ -1013,7 +1074,9 @@ def eval_create(
                 f"({result.score:.1%})[/bold], errors={result.errored}"
             )
     else:
-        console.print("[red]Provide --config, --tasks-dir, or --source-repo[/red]")
+        console.print(
+            "[red]Provide --config, --tasks-dir, --source-repo, or --source-hf[/red]"
+        )
         raise typer.Exit(1)
 
 

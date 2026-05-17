@@ -134,7 +134,7 @@ python3 -c "print($PASSED / $TOTAL)" > /logs/verifier/reward.txt
 
 ## solution/ (optional)
 
-Include when you want to verify the task is solvable or provide a reference implementation. When BenchFlow runs with `-a oracle`, it copies `solution/` to `/solution/` and runs `solution/solve.sh` instead of an ACP agent.
+Include when you want to verify the task is solvable or provide a reference implementation. When BenchFlow runs with `--agent oracle`, it copies `solution/` to `/solution/` and runs `solution/solve.sh` instead of an ACP agent.
 
 `solve.sh` has the same filesystem access as the agent — write only to `/app/`, not to `/logs/verifier/`.
 
@@ -148,9 +148,15 @@ echo "Hello, world!" > /app/hello.txt
 ## CLI
 
 ```bash
-# Scaffold a new task
+# Scaffold a new task from scratch
 bench tasks init my-task
 bench tasks init my-task --no-pytest --no-solution
+
+# Generate tasks from agent traces (personal benchmark curation)
+bench tasks generate --from-local
+bench tasks generate --from-file session.jsonl --dry-run
+bench tasks generate --from-hf opentraces-test --limit 50
+bench tasks list-sources
 
 # Validate structure
 bench tasks check tasks/my-task/
@@ -169,6 +175,12 @@ bench eval create \
   --skills-dir tasks/my-task/environment/skills \
   --agent-env BENCHFLOW_SKILL_NUDGE=name
 ```
+
+`bench tasks generate` converts agent traces (Claude Code sessions, opentraces
+records, or HuggingFace datasets) into task directories with `task.toml`,
+`instruction.md`, `environment/Dockerfile`, and a file-existence `test.sh`. Use
+`--dry-run` to preview traces before generating. See [CLI reference](./reference/cli.md#bench-tasks-generate)
+for all flags.
 
 `bench tasks check` validates that `task.toml`, `instruction.md` (non-empty), `environment/Dockerfile`, and `tests/` (non-empty) all exist, and that `[agent].timeout_sec` is set. Exits with code 1 on failure (CI-friendly).
 

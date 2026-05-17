@@ -1,6 +1,6 @@
 <div align="center">
   <h1>BenchFlow</h1>
-  <p>Multi-turn agent benchmarking — Scene-based lifecycle for any ACP agent</p>
+  <p>Multi-turn agent benchmarking — Scene-based lifecycle for ACP and acpx-backed agents</p>
   <a href="https://pypi.org/project/benchflow/" target="_blank">
     <img src="https://img.shields.io/pypi/v/benchflow?style=for-the-badge&logo=pypi" alt="PyPI">
   </a>
@@ -13,7 +13,7 @@
 
 BenchFlow runs AI agents against benchmark tasks in sandboxed environments. Single-agent, multi-agent, and multi-round patterns share one Scene-based lifecycle.
 
-- **Any ACP agent** — Gemini CLI, Claude Code, Codex, OpenCode, OpenHands, OpenClaw, Pi, or your own
+- **ACP + acpx agents** — Gemini CLI, Claude Code, Codex, Codex through acpx, OpenCode, OpenHands, OpenClaw, Pi, or your own
 - **Single + multi + progressive** — single-agent / multi-agent (coder + reviewer, simulated user) / multi-round with a Python `BaseUser` callback
 - **Sandboxes** — Docker locally, Daytona for parallel cloud runs, Modal for serverless/GPU-backed task environments
 - **Hardened verifier** — defaults block BenchJack/Meerkat-style reward-hacking; tasks opt out per-feature
@@ -22,9 +22,11 @@ BenchFlow runs AI agents against benchmark tasks in sandboxed environments. Sing
 
 ```bash
 uv tool install benchflow
+# For cloud adapters:
+uv tool install 'benchflow[daytona,modal]'
 ```
 
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). Set `DAYTONA_API_KEY` for Daytona runs or configure Modal auth for Modal runs; export the relevant agent API key (`GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) or run `claude login` / `codex --login` for subscription auth.
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/). The core install is BenchFlow-native and does not install Harbor. Docker works from the core install; Daytona and Modal are optional cloud adapters. Set `DAYTONA_API_KEY` for Daytona runs or configure Modal auth for Modal runs; export the relevant agent API key (`GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) or run `claude login` / `codex --login` for subscription auth. Use `codex-acpx` when you want Codex driven by the [acpx](https://acpx.sh/) headless ACP client instead of BenchFlow's built-in ACP client.
 
 ## Documentation
 
@@ -46,7 +48,8 @@ Notebooks and runnable example scripts live under [`docs/examples/`](./docs/exam
 
 ## Benchmark task sources
 
-Benchmark datasets live in external Git repos and are referenced with two fields:
+Benchmark datasets live in external Git repos or HuggingFace dataset repos and
+are referenced with a small `source` block:
 
 ```yaml
 # benchmarks/skillsbench-claude-glm51.yaml
@@ -58,19 +61,35 @@ agent: claude-agent-acp
 model: claude-sonnet-4-6
 ```
 
+Use `hf:` instead of `repo:` for HuggingFace-hosted task datasets:
+
+```yaml
+source:
+  hf: benchflow/skillsbench         # HuggingFace dataset repo
+  path: tasks
+  ref: main
+```
+
 Run any benchmark via the CLI:
 
 ```bash
 # From a YAML config
 bench eval create --config benchmarks/skillsbench-claude-glm51.yaml
 
-# Inline — mirrors the YAML source fields
+# Inline — mirrors the YAML source fields for GitHub
 bench eval create \
     --source-repo benchflow-ai/skillsbench --source-path tasks \
     --agent gemini --model gemini-3.1-flash-lite-preview --sandbox daytona --concurrency 64
+
+# Inline from HuggingFace
+bench eval create \
+    --source-hf benchflow/skillsbench --source-path tasks \
+    --agent gemini --model gemini-3.1-flash-lite-preview --sandbox daytona --concurrency 64
 ```
 
-Repos are cloned and cached locally under `.cache/datasets/` on first use.
+Repos are cached locally under `.cache/datasets/` on first use. HuggingFace
+task sources require the optional extra: `uv tool install 'benchflow[hf]'` or
+`pip install 'benchflow[hf]'`.
 
 SkillsBench itself sources BenchFlow from GitHub `main` in its
 [`pyproject.toml`](https://github.com/benchflow-ai/skillsbench/blob/main/pyproject.toml).
@@ -79,7 +98,7 @@ SkillsBench when you need its lockfile to point at the newest BenchFlow commit.
 
 ## Featured
 
-- **Progressive disclosure on SWE-bench Pro** — the `BaseUser` abstraction drives a multi-round rollout: terse round-0 prompt → failing-test hints → full spec. 5/5 oracle on Daytona, runnable demo at [`docs/examples/swebench_pro_progressive_disclosure.ipynb`](./docs/examples/swebench_pro_progressive_disclosure.ipynb). Also benchflow's [Harbor #1316](https://github.com/harbor-ai/harbor/issues/1316) parity answer for the no-second-LLM case. See [Progressive disclosure](./docs/progressive-disclosure.md).
+- **Progressive disclosure on SWE-bench Pro** — the `BaseUser` abstraction drives a multi-round rollout: terse round-0 prompt → failing-test hints → full spec. 5/5 oracle on Daytona, runnable demo at [`docs/examples/swebench_pro_progressive_disclosure.ipynb`](./docs/examples/swebench_pro_progressive_disclosure.ipynb). See [Progressive disclosure](./docs/progressive-disclosure.md).
 
 ## Research artifacts
 

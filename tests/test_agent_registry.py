@@ -7,7 +7,24 @@ test_registry_invariants.py — search there for the consolidated tripwire.
 
 from benchflow._agent_env import resolve_provider_env
 from benchflow.agents.providers import PROVIDERS
-from benchflow.agents.registry import AGENTS
+from benchflow.agents.registry import (
+    AGENT_ALIASES,
+    AGENT_INSTALLERS,
+    AGENT_LAUNCH,
+    AGENTS,
+    CUSTOM_AGENT_REGISTRY_ENV,
+    list_agents,
+    load_agent_registry,
+    resolve_agent,
+)
+
+
+def _remove_agent(name: str, *aliases: str) -> None:
+    AGENTS.pop(name, None)
+    AGENT_INSTALLERS.pop(name, None)
+    AGENT_LAUNCH.pop(name, None)
+    for alias in aliases:
+        AGENT_ALIASES.pop(alias, None)
 
 
 class TestEnvMappingField:
@@ -30,6 +47,21 @@ class TestEnvMappingField:
         assert cfg.env_mapping["BENCHFLOW_PROVIDER_BASE_URL"] == "OPENAI_BASE_URL"
         assert cfg.env_mapping["BENCHFLOW_PROVIDER_API_KEY"] == "OPENAI_API_KEY"
         assert "openai_base_url=$OPENAI_BASE_URL" in cfg.launch_cmd
+
+    def test_codex_acpx_wraps_codex_acp(self):
+        cfg = AGENTS["codex-acpx"]
+        assert cfg.protocol == "acpx"
+        assert (
+            "npm install -g --prefix /opt/benchflow/js-agents acpx@latest"
+            in cfg.install_cmd
+        )
+        assert "@zed-industries/codex-acp@latest" in cfg.install_cmd
+        assert cfg.launch_cmd == "/opt/benchflow/bin/codex-acp-launch"
+        assert "openai_base_url=$OPENAI_BASE_URL" in cfg.install_cmd
+        assert "exec /opt/benchflow/bin/codex-acp" in cfg.install_cmd
+        assert (
+            cfg.credential_files[0].path == AGENTS["codex-acp"].credential_files[0].path
+        )
 
     def test_gemini_has_mapping(self):
         cfg = AGENTS["gemini"]
@@ -76,6 +108,20 @@ class TestOpenHandsConfig:
         assert cfg.supports_acp_set_model is False
 
 
+class TestHarveyLabConfig:
+    def test_harvey_lab_uses_venv_for_python_deps(self):
+        cfg = AGENTS["harvey-lab-harness"]
+        assert "python3 -m venv /opt/benchflow/harvey-lab-venv" in cfg.install_cmd
+        assert (
+            "/opt/benchflow/harvey-lab-venv/bin/python -m pip install"
+            in cfg.install_cmd
+        )
+        assert cfg.launch_cmd.startswith(
+            "HARVEY_LABS_ROOT=/opt/harvey-labs "
+            "/opt/benchflow/harvey-lab-venv/bin/python "
+        )
+
+
 class TestAgentCredentialFiles:
     def test_codex_has_auth_json(self):
         cfg = AGENTS["codex-acp"]
@@ -102,3 +148,55 @@ class TestProviderCredentialFiles:
     def test_zai_no_credential_files(self):
         cfg = PROVIDERS["zai"]
         assert cfg.credential_files == []
+
+
+class TestCustomAgentRegistry:
+    def test_load_agent_registry_from_yaml(self, tmp_path):
+        registry = tmp_path / "agents.yaml"
+        registry.write_text("""
+agents:
+  custom-acp:
+    description: Custom ACP agent
+    install_cmd: "true"
+    launch_cmd: "custom-agent --acp"
+    protocol: acp
+    requires_env: [CUSTOM_API_KEY]
+    skill_paths: ["$HOME/.custom/skills"]
+    env_mapping:
+      BENCHFLOW_PROVIDER_API_KEY: CUSTOM_API_KEY
+    aliases: [custom]
+aliases:
+  custom-latest: custom-acp
+""")
+
+        try:
+            loaded = load_agent_registry(registry)
+            cfg = resolve_agent("custom")
+
+            assert [agent.name for agent in loaded] == ["custom-acp"]
+            assert cfg.name == "custom-acp"
+            assert cfg.launch_cmd == "custom-agent --acp"
+            assert cfg.requires_env == ["CUSTOM_API_KEY"]
+            assert cfg.env_mapping["BENCHFLOW_PROVIDER_API_KEY"] == "CUSTOM_API_KEY"
+            assert resolve_agent("custom-latest").name == "custom-acp"
+        finally:
+            _remove_agent("custom-acp", "custom", "custom-latest")
+
+    def test_resolve_agent_loads_registry_from_env(self, tmp_path, monkeypatch):
+        registry = tmp_path / "env-agents.yaml"
+        registry.write_text("""
+agents:
+  env-agent:
+    install_cmd: "echo install"
+    launch_cmd: "env-agent acp"
+    protocol: acpx
+""")
+        monkeypatch.setenv(CUSTOM_AGENT_REGISTRY_ENV, str(registry))
+
+        try:
+            cfg = resolve_agent("env-agent")
+
+            assert cfg.protocol == "acpx"
+            assert "env-agent" in {agent.name for agent in list_agents()}
+        finally:
+            _remove_agent("env-agent")

@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 from benchflow.agents.registry import get_sandbox_home_dirs
 
 if TYPE_CHECKING:
-    from harbor.models.task.task import Task
+    from benchflow.task import Task
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +306,7 @@ VERIFIER_ENV: dict[str, str] = {
         "--confcutdir=/tests "  # block conftest.py walk-up beyond /tests
         "-p no:cacheprovider"
         # --rootdir is injected dynamically by _build_pytest_addopts() based on
-        # the task's actual workspace, so it works for both /app (Harbor/SWE-bench)
+        # the task's actual workspace, so it works for both /app (SWE-bench)
         # and /root (SkillsBench) conventions.
     ),
     # Block pytest11 entry-point plugins. An agent can modify a pre-installed

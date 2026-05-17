@@ -13,6 +13,28 @@ List all registered agents with their protocol and auth requirements.
 bench agent list
 ```
 
+Custom managed agents can be loaded from YAML without editing BenchFlow source:
+
+```yaml
+# agents.yaml
+agents:
+  my-agent:
+    description: My ACP-compatible agent
+    install_cmd: "npm install -g my-agent"
+    launch_cmd: "my-agent --acp"
+    protocol: acp
+    requires_env: [MY_AGENT_API_KEY]
+    aliases: [mine]
+```
+
+```bash
+BENCHFLOW_AGENT_REGISTRY=agents.yaml bench agent list
+BENCHFLOW_AGENT_REGISTRY=agents.yaml bench eval create \
+  --tasks-dir tasks/edit-pdf \
+  --agent mine \
+  --sandbox docker
+```
+
 ### bench agent show
 
 Show details for a specific agent.
@@ -42,6 +64,15 @@ bench eval create \
   --concurrency 64 \
   --sandbox-setup-timeout 300
 
+# From HuggingFace dataset repo
+bench eval create \
+  --source-hf benchflow/skillsbench \
+  --source-path tasks \
+  --agent gemini \
+  --model gemini-3.1-flash-lite-preview \
+  --sandbox daytona \
+  --concurrency 64
+
 # From local directory
 bench eval create --tasks-dir ./tasks --agent gemini --model gemini-3.1-flash-lite-preview
 
@@ -53,6 +84,13 @@ bench eval create \
   --sandbox daytona \
   --skills-dir tasks/pdf-fix/environment/skills \
   --agent-env BENCHFLOW_SKILL_NUDGE=name
+
+# Codex through acpx's headless ACP client
+bench eval create \
+  --tasks-dir ./tasks/edit-pdf \
+  --agent codex-acpx \
+  --model gpt-5.4-mini/low \
+  --sandbox docker
 ```
 
 | Flag | Default | Description |
@@ -60,10 +98,12 @@ bench eval create \
 | `--config` | — | YAML config file |
 | `--tasks-dir` | — | Local task dir (single task with task.toml, or parent of many) |
 | `--source-repo` | — | Remote repo as `org/repo` (e.g. `benchflow-ai/skillsbench`) |
-| `--source-path` | — | Subpath within the repo (e.g. `tasks`) |
-| `--source-ref` | — | Branch or tag to clone (e.g. `main`) |
+| `--source-hf` | — | HuggingFace dataset repo as `org/dataset` (e.g. `benchflow/skillsbench`) |
+| `--source-path` | — | Subpath within the source (e.g. `tasks`) |
+| `--source-ref` | — | Branch, tag, or revision to clone/download (e.g. `main`) |
 | `--agent` | `claude-agent-acp` | Agent name |
 | `--model` | Agent default | Model ID |
+| `--judge` | Task default | Judge model for rubric/verifier tasks |
 | `--sandbox` | `docker` | Sandbox: docker, daytona, or modal |
 | `--concurrency` | `4` | Max concurrent tasks (batch mode only) |
 | `--jobs-dir` | `jobs` | Output directory |
@@ -121,6 +161,72 @@ Validate a task directory (Dockerfile, instruction.md, tests/).
 bench tasks check tasks/my-task
 ```
 
+## Docs Sync
+
+BenchFlow docs in this repo are the source for the website's BenchFlow docs.
+Use the export script to check or update the website copy:
+
+```bash
+# Fails when website MDX has drifted from benchflow/docs
+uv run python scripts/export_docs_to_website.py --check \
+  --website-root ../www.benchflow.ai
+
+# Writes generated MDX into the website repo
+uv run python scripts/export_docs_to_website.py --write \
+  --website-root ../www.benchflow.ai
+```
+
+### bench tasks generate
+
+Generate benchmark tasks from agent traces. Supports local Claude Code sessions,
+JSONL trace files, and HuggingFace datasets.
+
+```bash
+# From local Claude Code sessions
+bench tasks generate --from-local
+bench tasks generate --from-local --project my-repo --limit 5
+
+# From a JSONL trace file (auto-detects Claude Code vs opentraces format)
+bench tasks generate --from-file session.jsonl --dry-run
+bench tasks generate --from-file traces.jsonl --format opentraces
+
+# From a HuggingFace dataset (use alias or full repo ID)
+bench tasks generate --from-hf opentraces-test --limit 50 --outcome success
+bench tasks generate --from-hf nlile/misc-merged-claude-code-traces-v1 --limit 100
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--from-local` | — | Generate from local Claude Code sessions |
+| `--from-file` | — | Generate from a JSONL trace file |
+| `--from-hf` | — | Generate from a HuggingFace dataset ID or alias |
+| `--output` | `tasks` | Output directory for generated tasks |
+| `--project` | — | Filter local sessions by project path substring |
+| `--projects-dir` | `~/.claude/projects/` | Claude Code projects directory |
+| `--format` | `auto` | Trace format: auto, claude-code, claude-messages, opentraces |
+| `--split` | `train` | HuggingFace dataset split |
+| `--max-rows` | `100` | Max rows to download from HuggingFace |
+| `--limit` | `20` | Max traces to process |
+| `--min-steps` | `2` | Minimum steps per trace |
+| `--outcome` | — | Filter by outcome: success, failure, unknown |
+| `--author` | `benchflow-traces` | Author name for task.toml |
+| `--dry-run` | — | Preview traces without generating tasks |
+
+Generated tasks should still be reviewed and checked:
+
+```bash
+bench tasks check tasks/<generated-task>
+bench eval create --tasks-dir tasks/<generated-task> --agent codex-acp --sandbox docker
+```
+
+### bench tasks list-sources
+
+List known HuggingFace trace datasets and their aliases.
+
+```bash
+bench tasks list-sources
+```
+
 ## bench environment
 
 ### bench environment create
@@ -153,11 +259,27 @@ concurrency: 64
 sandbox_setup_timeout: 300
 agent: gemini
 model: gemini-3.1-flash-lite-preview
+judge: claude-sonnet-4-6
 skills_dir: shared-skills/
 agent_env:
   BENCHFLOW_SKILL_NUDGE: name
 max_retries: 2
 ```
+
+Use `source.hf` for HuggingFace-hosted task datasets:
+
+```yaml
+source:
+  hf: benchflow/skillsbench
+  path: tasks
+  ref: main
+environment: daytona
+agent: gemini
+model: gemini-3.1-flash-lite-preview
+```
+
+HuggingFace task sources require the optional extra:
+`uv tool install 'benchflow[hf]'` or `pip install 'benchflow[hf]'`.
 
 ### Multi-scene (BYOS skill generation)
 

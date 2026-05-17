@@ -25,7 +25,7 @@ from benchflow.agents.registry import (
     AGENTS,
 )
 
-VALID_AGENT_PROTOCOLS = {"acp", "cli"}
+VALID_AGENT_PROTOCOLS = {"acp", "acpx", "cli"}
 # Empty api_protocol is valid for agents (they infer from the model name at
 # runtime); providers must always declare an explicit protocol.
 VALID_API_PROTOCOLS = {
@@ -41,6 +41,7 @@ JS_ACP_AGENTS = {
     "pi-acp",
     "openclaw",
     "codex-acp",
+    "codex-acpx",
     "gemini",
     "opencode",
 }

@@ -47,9 +47,8 @@ _SENTINEL: Any = object()  # default value for _sdk; tests replace with AsyncMoc
 class RetryConfig:
     """Configuration for retry behavior.
 
-    Matches Harbor's RetryConfig pattern: exponential backoff with
-    configurable exception filtering. Legacy boolean fields are
-    preserved for backwards compat but the category-based check
+    Exponential backoff with configurable exception filtering. Legacy boolean
+    fields are preserved for backwards compat but the category-based check
     covers all cases.
     """
 
@@ -105,6 +104,7 @@ class EvaluationConfig:
 
     agent: str = DEFAULT_AGENT
     model: str | None = None
+    judge: str | None = None
     environment: str = "docker"
     concurrency: int = 4
     prompts: list[str | None] | None = None
@@ -130,6 +130,11 @@ class EvaluationConfig:
                 f"Unknown agent {self.agent!r} — not in registry. "
                 f"Available: {available}. Will attempt to use as raw command."
             )
+
+
+def _verifier_env_for_judge(judge: str | None) -> dict[str, str] | None:
+    """Translate a judge model override into verifier environment."""
+    return {"JUDGE_MODEL": judge} if judge else None
 
 
 @dataclass
@@ -238,16 +243,32 @@ class Evaluation:
     @classmethod
     def _from_native_yaml(cls, raw: dict, **kwargs) -> Job:
         """Parse benchflow-native YAML."""
-        from benchflow.task_download import TASK_ALIASES, ensure_tasks, resolve_source
+        from benchflow.task_download import (
+            TASK_ALIASES,
+            ensure_tasks,
+            resolve_hf_source,
+            resolve_source,
+        )
 
         # New two-field format: source.repo + source.path
         if "source" in raw:
             src = raw["source"]
-            tasks_dir = resolve_source(
-                repo=src["repo"],
-                path=src.get("path"),
-                ref=src.get("ref"),
-            )
+            if "repo" in src and "hf" in src:
+                raise ValueError("YAML source must use only one of 'repo' or 'hf'")
+            if "hf" in src:
+                tasks_dir = resolve_hf_source(
+                    repo_id=src["hf"],
+                    path=src.get("path"),
+                    ref=src.get("ref"),
+                )
+            elif "repo" in src:
+                tasks_dir = resolve_source(
+                    repo=src["repo"],
+                    path=src.get("path"),
+                    ref=src.get("ref"),
+                )
+            else:
+                raise ValueError("YAML source must include 'repo' or 'hf'")
         elif "tasks_dir" in raw:
             # Legacy single-string format (backward compat).
             ref = raw["tasks_dir"]
@@ -273,6 +294,7 @@ class Evaluation:
         config = EvaluationConfig(
             agent=agent_name,
             model=effective_model(agent_name, raw.get("model")),
+            judge=raw.get("judge"),
             environment=raw.get("environment", "docker"),
             concurrency=raw.get("concurrency", 4),
             prompts=prompts,
@@ -341,6 +363,7 @@ class Evaluation:
         config = EvaluationConfig(
             agent=agent_name,
             model=model,
+            judge=raw.get("judge"),
             environment=environment,
             concurrency=concurrency,
             agent_env=agent_env,
@@ -420,6 +443,7 @@ class Evaluation:
             model=cfg.model,
             prompts=cfg.prompts,
             agent_env=cfg.agent_env,
+            verifier_env=_verifier_env_for_judge(cfg.judge),
             job_name=self._job_name,
             jobs_dir=str(self._jobs_dir),
             environment=cfg.environment,
@@ -449,6 +473,7 @@ class Evaluation:
             model=cfg.model,
             prompts=cfg.prompts,
             agent_env=cfg.agent_env,
+            verifier_env=_verifier_env_for_judge(cfg.judge),
             job_name=self._job_name,
             jobs_dir=str(self._jobs_dir),
             environment=cfg.environment,

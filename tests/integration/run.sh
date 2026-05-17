@@ -14,7 +14,7 @@
 #   GEMINI_API_KEY (or GOOGLE_API_KEY)
 #   DAYTONA_API_KEY
 #   CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY  (for claude-agent-acp)
-#   OPENAI_API_KEY                                (for codex-acp)
+#   OPENAI_API_KEY                                (for codex-acp, codex-acpx)
 
 set -euo pipefail
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -39,7 +39,8 @@ SELECTED_TASKS=(
 DEFAULT_MODEL="gemini-3.1-flash-lite-preview"
 declare -A AGENT_MODELS=(
   [claude-agent-acp]="claude-haiku-4-5-20251001"
-  [codex-acp]="gpt-5.4-nano"
+  [codex-acp]="gpt-5.4-mini/low"
+  [codex-acpx]="gpt-5.4-mini/low"
 )
 
 ALL_AGENTS=(
@@ -47,6 +48,7 @@ ALL_AGENTS=(
   pi-acp
   openclaw
   codex-acp
+  codex-acpx
   gemini
   opencode
   harvey-lab-harness
@@ -79,7 +81,7 @@ has_creds_for() {
       [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ] || \
       [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]
       ;;
-    codex-acp)
+    codex-acp|codex-acpx)
       [ -n "${OPENAI_API_KEY:-}" ]
       ;;
     *)

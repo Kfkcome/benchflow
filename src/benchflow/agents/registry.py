@@ -15,7 +15,8 @@ Required fields
 
 Common optional fields
 ----------------------
-- ``protocol``           "acp" (default) or "cli". Almost always "acp".
+- ``protocol``           "acp" (default), "acpx", or "cli". Almost always
+                         "acp"; "acpx" invokes the acpx headless ACP client.
 - ``requires_env``       List of env var names the SDK must propagate into the
                          sandbox (e.g. ``["ANTHROPIC_API_KEY"]``). Validated at
                          run start; missing keys raise before the container
@@ -46,9 +47,13 @@ Look at the existing entries below for worked examples:
 """
 
 import base64
+import os
 import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 
 def _install_python_script(container_path: str, source: str) -> str:
@@ -86,6 +91,8 @@ def _install_python_script(container_path: str, source: str) -> str:
 _BENCHFLOW_NODE_PREFIX = "/opt/benchflow/node"
 _BENCHFLOW_JS_AGENT_PREFIX = "/opt/benchflow/js-agents"
 _BENCHFLOW_BIN_PREFIX = "/opt/benchflow/bin"
+_CODEX_ACPX_LAUNCHER = f"{_BENCHFLOW_BIN_PREFIX}/codex-acp-launch"
+_HARVEY_LAB_VENV = "/opt/benchflow/harvey-lab-venv"
 _JS_AGENT_PATH = (
     f"{_BENCHFLOW_BIN_PREFIX}:{_BENCHFLOW_JS_AGENT_PREFIX}/bin:"
     f"{_BENCHFLOW_NODE_PREFIX}/bin:$PATH"
@@ -158,6 +165,21 @@ def _js_agent_launch(binary: str, args: str = "") -> str:
     return f"{cmd} {args}".rstrip()
 
 
+def _codex_acpx_install() -> str:
+    """Install acpx plus a Codex ACP launch wrapper safe for acpx --agent."""
+    return (
+        f"{_js_agent_install('acpx', 'acpx')} && "
+        f"{_js_agent_install('codex-acp', '@zed-industries/codex-acp')} && "
+        f"printf '%s\\n' '#!/bin/sh' "
+        "'if [ -n \"${OPENAI_BASE_URL:-}\" ]; then' "
+        '\'  set -- -c "openai_base_url=$OPENAI_BASE_URL" "$@"\' '
+        "'fi' "
+        f"'exec {_BENCHFLOW_BIN_PREFIX}/codex-acp \"$@\"' "
+        f"> {_CODEX_ACPX_LAUNCHER} && "
+        f"chmod +x {_CODEX_ACPX_LAUNCHER}"
+    )
+
+
 # Path to the openclaw ACP shim script
 _OPENCLAW_SHIM = (Path(__file__).parent / "openclaw_acp_shim.py").read_text()
 
@@ -223,7 +245,7 @@ class AgentConfig:
     name: str
     install_cmd: str
     launch_cmd: str
-    protocol: str = "acp"  # "acp" or "cli"
+    protocol: str = "acp"  # "acp", "acpx", or "cli"
     requires_env: list[str] = field(default_factory=list)
     description: str = ""
     skill_paths: list[str] = field(default_factory=list)
@@ -374,6 +396,35 @@ AGENTS: dict[str, AgentConfig] = {
         ),
         disallow_web_tools_launch_suffix=" -c tools.web_search=false",
     ),
+    "codex-acpx": AgentConfig(
+        name="codex-acpx",
+        description="OpenAI Codex via acpx headless ACP client",
+        skill_paths=["$HOME/.agents/skills"],
+        install_cmd=_codex_acpx_install(),
+        launch_cmd=_CODEX_ACPX_LAUNCHER,
+        protocol="acpx",
+        requires_env=["OPENAI_API_KEY"],
+        api_protocol="openai-responses",
+        env_mapping={
+            "BENCHFLOW_PROVIDER_BASE_URL": "OPENAI_BASE_URL",
+            "BENCHFLOW_PROVIDER_API_KEY": "OPENAI_API_KEY",
+        },
+        credential_files=[
+            CredentialFile(
+                path="{home}/.codex/auth.json",
+                env_source="OPENAI_API_KEY",
+                template='{{"OPENAI_API_KEY": "{value}"}}',
+            ),
+        ],
+        subscription_auth=SubscriptionAuth(
+            replaces_env="OPENAI_API_KEY",
+            detect_file="~/.codex/auth.json",
+            files=[
+                HostAuthFile("~/.codex/auth.json", "{home}/.codex/auth.json"),
+            ],
+        ),
+        disallow_web_tools_launch_suffix=" -c tools.web_search=false",
+    ),
     "gemini": AgentConfig(
         name="gemini",
         description="Google Gemini CLI via ACP",
@@ -446,16 +497,24 @@ AGENTS: dict[str, AgentConfig] = {
             "( [ -d /opt/harvey-labs/.git ] || "
             "  git clone --depth 1 https://github.com/harveyai/harvey-labs.git /opt/harvey-labs ) && "
             # Install Harvey LAB's Python dependencies
-            "( command -v pip3 >/dev/null 2>&1 || "
+            "( command -v pip3 >/dev/null 2>&1 && "
+            "  python3 -m venv --help >/dev/null 2>&1 || "
             "  (apt-get update -qq && apt-get install -y -qq python3-pip >/dev/null 2>&1) ) && "
-            "pip3 install -q anthropic openai google-genai "
+            "( python3 -m venv --help >/dev/null 2>&1 || "
+            "  (apt-get update -qq && apt-get install -y -qq python3-venv >/dev/null 2>&1) ) && "
+            f"( [ -x {_HARVEY_LAB_VENV}/bin/python ] || "
+            f"  python3 -m venv {_HARVEY_LAB_VENV} ) && "
+            f"{_HARVEY_LAB_VENV}/bin/python -m pip install -q anthropic openai google-genai "
             "python-docx pdfplumber openpyxl python-pptx markitdown pandas && "
             # Deploy ACP shim
             + _install_python_script(
                 f"{_BENCHFLOW_BIN_PREFIX}/harvey-lab-acp-shim", _HARVEY_LAB_SHIM
             )
         ),
-        launch_cmd=f"HARVEY_LABS_ROOT=/opt/harvey-labs python3 {_BENCHFLOW_BIN_PREFIX}/harvey-lab-acp-shim",
+        launch_cmd=(
+            f"HARVEY_LABS_ROOT=/opt/harvey-labs "
+            f"{_HARVEY_LAB_VENV}/bin/python {_BENCHFLOW_BIN_PREFIX}/harvey-lab-acp-shim"
+        ),
         protocol="acp",
         requires_env=[],  # inferred from model at runtime (ANTHROPIC_API_KEY, etc.)
         # env_mapping intentionally empty — Harvey LAB adapters read
@@ -535,6 +594,8 @@ AGENTS: dict[str, AgentConfig] = {
 # Updated by register_agent() when new agents are added at runtime.
 AGENT_INSTALLERS: dict[str, str] = {name: a.install_cmd for name, a in AGENTS.items()}
 AGENT_LAUNCH: dict[str, str] = {name: a.launch_cmd for name, a in AGENTS.items()}
+CUSTOM_AGENT_REGISTRY_ENV = "BENCHFLOW_AGENT_REGISTRY"
+_LOADED_CUSTOM_REGISTRIES: set[Path] = set()
 
 
 def get_sandbox_home_dirs() -> set[str]:
@@ -604,6 +665,7 @@ def infer_env_key_for_model(model: str) -> str | None:
 AGENT_ALIASES: dict[str, str] = {
     "claude": "claude-agent-acp",
     "codex": "codex-acp",
+    "acpx-codex": "codex-acpx",
     "gemini": "gemini",
     "pi": "pi-acp",
     "openclaw": "openclaw",
@@ -612,7 +674,7 @@ AGENT_ALIASES: dict[str, str] = {
     "harvey-lab": "harvey-lab-harness",
 }
 
-VALID_PROTOCOLS = {"acp", "harbor"}
+VALID_PROTOCOLS = {"acp", "acpx", "harbor"}
 
 
 def parse_agent_spec(spec: str) -> tuple[str, str]:
@@ -630,12 +692,169 @@ def parse_agent_spec(spec: str) -> tuple[str, str]:
     return protocol, name
 
 
+def _string_list(value: Any, *, field_name: str) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"{field_name} must be a list of strings")
+    return value
+
+
+def _string_dict(value: Any, *, field_name: str) -> dict[str, str]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in value.items()
+    ):
+        raise ValueError(f"{field_name} must be a string-to-string mapping")
+    return dict(value)
+
+
+def _credential_files(value: Any) -> list[CredentialFile]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError("credential_files must be a list")
+    out: list[CredentialFile] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError("credential_files entries must be mappings")
+        out.append(
+            CredentialFile(
+                path=str(item["path"]),
+                env_source=str(item["env_source"]),
+                template=str(item.get("template", "")),
+                mkdir=bool(item.get("mkdir", True)),
+            )
+        )
+    return out
+
+
+def _subscription_auth(value: Any) -> SubscriptionAuth | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("subscription_auth must be a mapping")
+    files_raw = value.get("files", [])
+    if not isinstance(files_raw, list):
+        raise ValueError("subscription_auth.files must be a list")
+    files: list[HostAuthFile] = []
+    for item in files_raw:
+        if not isinstance(item, dict):
+            raise ValueError("subscription_auth.files entries must be mappings")
+        files.append(
+            HostAuthFile(
+                host_path=str(item["host_path"]),
+                container_path=str(item["container_path"]),
+            )
+        )
+    return SubscriptionAuth(
+        replaces_env=str(value["replaces_env"]),
+        detect_file=str(value["detect_file"]),
+        files=files,
+    )
+
+
+def _agent_config_from_mapping(name: str, raw: Any) -> AgentConfig:
+    if not isinstance(raw, dict):
+        raise ValueError(f"Agent {name!r} must be a mapping")
+    install_cmd = raw.get("install_cmd")
+    launch_cmd = raw.get("launch_cmd")
+    if not isinstance(install_cmd, str) or not install_cmd:
+        raise ValueError(f"Agent {name!r} must set install_cmd")
+    if not isinstance(launch_cmd, str) or not launch_cmd:
+        raise ValueError(f"Agent {name!r} must set launch_cmd")
+    return AgentConfig(
+        name=name,
+        install_cmd=install_cmd,
+        launch_cmd=launch_cmd,
+        protocol=str(raw.get("protocol", "acp")),
+        requires_env=_string_list(raw.get("requires_env"), field_name="requires_env"),
+        description=str(raw.get("description", "")),
+        skill_paths=_string_list(raw.get("skill_paths"), field_name="skill_paths"),
+        install_timeout=int(raw.get("install_timeout", 900)),
+        default_model=str(raw.get("default_model", "")),
+        api_protocol=str(raw.get("api_protocol", "")),
+        env_mapping=_string_dict(raw.get("env_mapping"), field_name="env_mapping"),
+        credential_files=_credential_files(raw.get("credential_files")),
+        home_dirs=_string_list(raw.get("home_dirs"), field_name="home_dirs"),
+        subscription_auth=_subscription_auth(raw.get("subscription_auth")),
+        acp_model_format=str(raw.get("acp_model_format", "bare")),
+        supports_acp_set_model=bool(raw.get("supports_acp_set_model", True)),
+        disallow_web_tools_setup_cmd=str(raw.get("disallow_web_tools_setup_cmd", "")),
+        disallow_web_tools_launch_suffix=str(
+            raw.get("disallow_web_tools_launch_suffix", "")
+        ),
+    )
+
+
+def load_agent_registry(path: str | Path) -> list[AgentConfig]:
+    """Load custom managed agents from a YAML registry file.
+
+    The file shape is intentionally close to ``AgentConfig``:
+
+    ```yaml
+    agents:
+      my-agent:
+        install_cmd: "true"
+        launch_cmd: "my-agent --acp"
+        protocol: acp
+        aliases: [mine]
+    aliases:
+      latest-mine: my-agent
+    ```
+    """
+    registry_path = Path(path).expanduser().resolve()
+    if registry_path in _LOADED_CUSTOM_REGISTRIES:
+        return []
+    raw = yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"Agent registry must be a mapping: {registry_path}")
+    agents_raw = raw.get("agents", {})
+    if not isinstance(agents_raw, dict):
+        raise ValueError("agents must be a mapping of name -> config")
+
+    loaded: list[AgentConfig] = []
+    for name, spec in agents_raw.items():
+        if not isinstance(name, str) or not name:
+            raise ValueError("agent names must be non-empty strings")
+        config = _agent_config_from_mapping(name, spec)
+        AGENTS[name] = config
+        AGENT_INSTALLERS[name] = config.install_cmd
+        AGENT_LAUNCH[name] = config.launch_cmd
+        loaded.append(config)
+        for alias in _string_list(
+            spec.get("aliases") if isinstance(spec, dict) else None,
+            field_name=f"agents.{name}.aliases",
+        ):
+            AGENT_ALIASES[alias] = name
+
+    aliases_raw = raw.get("aliases", {})
+    aliases = _string_dict(aliases_raw, field_name="aliases")
+    for alias, canonical in aliases.items():
+        if canonical not in AGENTS:
+            raise ValueError(f"Alias {alias!r} points to unknown agent {canonical!r}")
+        AGENT_ALIASES[alias] = canonical
+
+    _LOADED_CUSTOM_REGISTRIES.add(registry_path)
+    return loaded
+
+
+def load_agent_registries_from_env() -> None:
+    """Load YAML registries named by BENCHFLOW_AGENT_REGISTRY."""
+    raw_paths = os.environ.get(CUSTOM_AGENT_REGISTRY_ENV, "")
+    for raw_path in raw_paths.split(os.pathsep):
+        if raw_path.strip():
+            load_agent_registry(raw_path)
+
+
 def resolve_agent(spec: str) -> AgentConfig:
     """Resolve an agent spec to an AgentConfig.
 
     Supports: bare name, alias, protocol/name.
     Raises KeyError with suggestions for unknown agents.
     """
+    load_agent_registries_from_env()
     protocol, name = parse_agent_spec(spec)
 
     if protocol not in VALID_PROTOCOLS:
@@ -652,6 +871,11 @@ def resolve_agent(spec: str) -> AgentConfig:
             requires_env=[],
             description=f"Harbor agent: {name}",
         )
+
+    if protocol == "acpx" and name in AGENTS and AGENTS[name].protocol != "acpx":
+        acpx_name = f"{name.removesuffix('-acp')}-acpx"
+        if acpx_name in AGENTS:
+            return AGENTS[acpx_name]
 
     if name in AGENTS:
         return AGENTS[name]
@@ -673,6 +897,7 @@ def get_agent(name: str) -> tuple[AgentConfig, str]:
     Returns (config, default_model) where default_model comes from config.default_model.
     Raises KeyError if not found.
     """
+    load_agent_registries_from_env()
     if name not in AGENTS:
         available = ", ".join(sorted(AGENTS.keys()))
         raise KeyError(f"Unknown agent: {name!r}. Available: {available}")
@@ -682,6 +907,7 @@ def get_agent(name: str) -> tuple[AgentConfig, str]:
 
 def list_agents() -> list[AgentConfig]:
     """List all registered agents."""
+    load_agent_registries_from_env()
     return list(AGENTS.values())
 
 
@@ -695,12 +921,16 @@ def register_agent(
     description: str = "",
     skill_paths: list[str] | None = None,
     install_timeout: int = 900,
+    default_model: str = "",
+    api_protocol: str = "",
     env_mapping: dict[str, str] | None = None,
     credential_files: list[CredentialFile] | None = None,
     home_dirs: list[str] | None = None,
     subscription_auth: SubscriptionAuth | None = None,
     acp_model_format: str = "bare",
     supports_acp_set_model: bool = True,
+    disallow_web_tools_setup_cmd: str = "",
+    disallow_web_tools_launch_suffix: str = "",
 ) -> AgentConfig:
     """Register a custom agent at runtime.
 
@@ -726,12 +956,16 @@ def register_agent(
         description=description,
         skill_paths=skill_paths or [],
         install_timeout=install_timeout,
+        default_model=default_model,
+        api_protocol=api_protocol,
         env_mapping=env_mapping or {},
         credential_files=credential_files or [],
         home_dirs=home_dirs or [],
         subscription_auth=subscription_auth,
         acp_model_format=acp_model_format,
         supports_acp_set_model=supports_acp_set_model,
+        disallow_web_tools_setup_cmd=disallow_web_tools_setup_cmd,
+        disallow_web_tools_launch_suffix=disallow_web_tools_launch_suffix,
     )
     AGENTS[name] = config
     AGENT_INSTALLERS[name] = install_cmd

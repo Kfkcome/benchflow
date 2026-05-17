@@ -241,6 +241,7 @@ class ACPClient:
             "prompt": [{"type": "text", "text": text}],
         }
         result = await self._send_request("session/prompt", params)
+        self._session.record_usage(result)
         prompt_result = PromptResult.model_validate(result)
         self._session.stop_reason = prompt_result.stop_reason
         return prompt_result

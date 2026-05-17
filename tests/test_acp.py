@@ -64,6 +64,53 @@ class TestACPClient:
             await client.close()
 
     @pytest.mark.asyncio
+    async def test_prompt_records_usage_from_result(self) -> None:
+        class FakeTransport:
+            def __init__(self) -> None:
+                self.sent = []
+
+            async def start(self) -> None:
+                return None
+
+            async def send(self, message) -> None:
+                self.sent.append(message)
+
+            async def receive(self):
+                req_id = self.sent[-1]["id"]
+                if self.sent[-1]["method"] == "session/new":
+                    return {
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "result": {"sessionId": "s1"},
+                    }
+                return {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {
+                        "stopReason": "end_turn",
+                        "usage": {
+                            "prompt_tokens": 12,
+                            "completion_tokens": 3,
+                        },
+                        "total_cost_usd": 0.002,
+                    },
+                }
+
+            async def close(self) -> None:
+                return None
+
+        client = ACPClient(FakeTransport())
+        session = await client.session_new()
+        await client.prompt("hi")
+
+        assert session.usage_summary() == {
+            "input_tokens": 12,
+            "output_tokens": 3,
+            "total_tokens": 15,
+        }
+        assert session.total_cost_usd == 0.002
+
+    @pytest.mark.asyncio
     async def test_from_config_stdio(self) -> None:
         client = ACPClient.from_config(
             command=f"{sys.executable} {MOCK_AGENT}",
@@ -429,7 +476,7 @@ class TestConnectAcpModelSelection:
         mock_env = AsyncMock()
         with (
             patch(
-                "benchflow._acp_run.DockerProcess.from_harbor_env",
+                "benchflow._acp_run.DockerProcess.from_docker_environment",
                 return_value=MagicMock(),
             ),
             patch("benchflow._acp_run.ContainerTransport", return_value=MagicMock()),
@@ -457,7 +504,7 @@ class TestConnectAcpModelSelection:
         mock_env = AsyncMock()
         with (
             patch(
-                "benchflow._acp_run.DockerProcess.from_harbor_env",
+                "benchflow._acp_run.DockerProcess.from_docker_environment",
                 return_value=MagicMock(),
             ),
             patch("benchflow._acp_run.ContainerTransport", return_value=MagicMock()),
@@ -485,7 +532,7 @@ class TestConnectAcpModelSelection:
         mock_env = AsyncMock()
         with (
             patch(
-                "benchflow._acp_run.DockerProcess.from_harbor_env",
+                "benchflow._acp_run.DockerProcess.from_docker_environment",
                 return_value=MagicMock(),
             ),
             patch("benchflow._acp_run.ContainerTransport", return_value=MagicMock()),
@@ -523,12 +570,12 @@ class TestConnectAcpModelSelection:
 
         with (
             patch(
-                "benchflow._acp_run.DaytonaPtyProcess.from_harbor_env",
+                "benchflow._acp_run.DaytonaPtyProcess.from_daytona_environment",
                 new_callable=AsyncMock,
                 return_value=MagicMock(),
             ) as mock_pty,
             patch(
-                "benchflow._acp_run.DaytonaProcess.from_harbor_env",
+                "benchflow._acp_run.DaytonaProcess.from_daytona_environment",
                 new_callable=AsyncMock,
                 return_value=MagicMock(),
             ) as mock_ssh,
@@ -549,3 +596,39 @@ class TestConnectAcpModelSelection:
 
         mock_pty.assert_awaited_once_with(mock_env)
         mock_ssh.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_connect_acp_times_out_initial_transport_connect(self, tmp_path):
+        """Guards ENG-59: ACP connect itself must be bounded, not only initialize."""
+        from benchflow._acp_run import connect_acp
+
+        async def hang_forever():
+            await asyncio.sleep(3600)
+
+        mock_acp = self._make_mocks()
+        mock_acp.connect = AsyncMock(side_effect=hang_forever)
+        mock_env = AsyncMock()
+        with (
+            patch(
+                "benchflow._acp_run.DockerProcess.from_docker_environment",
+                return_value=MagicMock(),
+            ),
+            patch("benchflow._acp_run.ContainerTransport", return_value=MagicMock()),
+            patch("benchflow._acp_run.ACPClient", return_value=mock_acp),
+            patch("benchflow._acp_run._ACP_HANDSHAKE_TIMEOUT", 0.01),
+            patch("benchflow._acp_run._ACP_CONNECT_MAX_RETRIES", 0),
+            pytest.raises(ConnectionError, match="ACP connect timed out"),
+        ):
+            await connect_acp(
+                env=mock_env,
+                agent="test-agent",
+                agent_launch="test-agent",
+                agent_env={},
+                sandbox_user=None,
+                model=None,
+                trial_dir=tmp_path,
+                environment="docker",
+                agent_cwd="/app",
+            )
+
+        mock_acp.close.assert_awaited_once()

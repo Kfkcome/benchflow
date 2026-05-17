@@ -5,7 +5,7 @@ A 5-minute path from install to first eval.
 
 - Python 3.12+
 - [`uv`](https://docs.astral.sh/uv/)
-- Docker for local sandboxes, `DAYTONA_API_KEY` for Daytona cloud runs, or Modal auth for Modal-backed runs
+- Docker for local sandboxes, `DAYTONA_API_KEY` plus `benchflow[daytona]` for Daytona, or `benchflow[modal]` plus Modal auth for Modal-backed runs
 - An API key or subscription/OAuth auth for at least one agent (see below)
 
 ## Install
@@ -14,12 +14,19 @@ A 5-minute path from install to first eval.
 uv tool install benchflow
 ```
 
-This gives you the `benchflow` (alias `bench`) CLI plus the Python SDK. To install for editable development:
+This gives you the `benchflow` (alias `bench`) CLI plus the Python SDK. The default install is BenchFlow-native and does not install Harbor. For cloud adapters, install the optional extras:
+
+```bash
+uv tool install 'benchflow[daytona,modal]'
+```
+
+To install for editable development:
 
 ```bash
 git clone https://github.com/benchflow-ai/benchflow
 cd benchflow
 uv sync --extra dev --locked
+# Include --extra daytona / --extra modal when dogfooding cloud adapters locally.
 ```
 
 ## Auth: OAuth, long-lived token, or API key
@@ -34,6 +41,7 @@ If you've logged into the agent's CLI on your host (`claude login`, `codex --log
 |-------|---------------------------|------------------------|------------------|
 | `claude-agent-acp` | `claude login` (Claude Code CLI) | `~/.claude/.credentials.json` | `ANTHROPIC_API_KEY` |
 | `codex-acp` | `codex --login` (Codex CLI) | `~/.codex/auth.json` | `OPENAI_API_KEY` |
+| `codex-acpx` | `codex --login` (Codex CLI) | `~/.codex/auth.json` | `OPENAI_API_KEY` |
 | `gemini` | `gemini` (interactive login) | `~/.gemini/oauth_creds.json` | `GEMINI_API_KEY` |
 
 When benchflow finds the detect file, you'll see:
@@ -100,16 +108,33 @@ GEMINI_API_KEY=... bench eval create \
     --source-repo benchflow-ai/skillsbench --source-path tasks \
     --agent gemini --model gemini-3.1-pro-preview --sandbox daytona --concurrency 32
 
+# Batch from HuggingFace dataset repo
+GEMINI_API_KEY=... bench eval create \
+    --source-hf benchflow/skillsbench --source-path tasks \
+    --agent gemini --model gemini-3.1-pro-preview --sandbox daytona --concurrency 32
+
+# Codex through acpx's headless ACP client
+OPENAI_API_KEY=... bench eval create \
+    --tasks-dir tasks/edit-pdf \
+    --agent codex-acpx --model gpt-5.4-mini/low --sandbox docker
+
 # List the registered agents
 bench agent list
 ```
 
 `bench eval create` is the primary command for running evaluations — it works for
-single tasks, batch runs, and remote repos. Use `--source-repo <org/repo>
---source-path <subpath>` to fetch from a remote repo, `--tasks-dir <dir>` for a
-local directory, or `--config <config.yaml>` for a YAML config. Results land under
+single tasks, batch runs, and remote repos. Use `--source-repo <org/repo>` for
+GitHub or `--source-hf <org/dataset>` for HuggingFace, plus
+`--source-path <subpath>` to select a subset. Use `--tasks-dir <dir>` for a local
+directory, or `--config <config.yaml>` for a YAML config. Results land under
 `jobs/<job-name>/<trial-name>/` — `result.json` for the verifier output,
-`trajectory/acp_trajectory.jsonl` for the full agent trace.
+`trajectory/acp_trajectory.jsonl` for the full agent trace. HuggingFace task
+sources require the optional extra: `uv tool install 'benchflow[hf]'` or
+`pip install 'benchflow[hf]'`.
+
+`codex-acpx` uses [acpx](https://acpx.sh/) as the ACP client. BenchFlow installs
+the acpx CLI and Codex ACP adapter in its isolated `/opt/benchflow` Node runtime,
+then normalizes acpx's raw ACP JSON output into the usual trajectory file.
 
 When you mount skills, use `BENCHFLOW_SKILL_NUDGE=name` as the default docs
 option. It tells the agent which skills are available and where to read them.
@@ -135,6 +160,12 @@ print(result.rewards)         # {'reward': 1.0}
 print(result.n_tool_calls)
 ```
 
+For HuggingFace-hosted tasks, use the `hf://` source scheme:
+
+```python
+task_path = resolve_source("hf://benchflow/skillsbench", path="tasks/edit-pdf")
+```
+
 `Rollout` (aliased as `Trial`) is decomposable — invoke each lifecycle phase individually for custom flows. See [Concepts: rollout lifecycle](./concepts.md#rollout-lifecycle).
 
 ## What to read next
@@ -142,7 +173,8 @@ print(result.n_tool_calls)
 | If you want to… | Read |
 |------------------|------|
 | Understand the model — Rollout, Scene, Role, Verifier | [Concepts](./concepts.md) |
-| Author a task | [Task authoring](./task-authoring.md) |
+| Author a task from scratch | [Task authoring](./task-authoring.md) |
+| Generate tasks from Claude Code / agent traces | [Task authoring — CLI](./task-authoring.md#cli) · [CLI reference](./reference/cli.md#bench-tasks-generate) |
 | Run multi-agent patterns (coder/reviewer, simulated user, BYOS) | [Use cases](./use-cases.md) |
 | Run multi-round single-agent (progressive disclosure) | [Progressive disclosure](./progressive-disclosure.md) |
 | Evaluate skills, not tasks | [Skill eval](./skill-eval.md) |

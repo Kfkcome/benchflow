@@ -142,8 +142,8 @@ class DockerProcess(LiveProcess):
         self._service = service
 
     @classmethod
-    def from_harbor_env(cls, env: Any) -> "DockerProcess":
-        """Create from a Harbor DockerEnvironment."""
+    def from_docker_environment(cls, env: Any) -> "DockerProcess":
+        """Create from a BenchFlow Docker environment."""
         project_name = env.session_id.lower().replace(".", "-")
         project_dir = str(env.environment_dir.resolve().absolute())
         compose_files = [str(p.resolve().absolute()) for p in env._docker_compose_paths]
@@ -263,6 +263,100 @@ class DockerProcess(LiveProcess):
         )
 
 
+class ModalProcess(LiveProcess):
+    """Live stdin/stdout via Modal Sandbox.exec."""
+
+    _process = None
+
+    def __init__(self, sandbox: Any):
+        self._sandbox = sandbox
+        self._modal_proc = None
+        self._stdout_iter = None
+        self._stdout_buffer = b""
+        self._stderr_chunks: list[str] = []
+        self._stderr_task: asyncio.Task | None = None
+        self._closed = False
+
+    @classmethod
+    def from_modal_environment(cls, env: Any) -> "ModalProcess":
+        if getattr(env, "_sandbox", None) is None:
+            raise RuntimeError("Modal sandbox not started")
+        return cls(env._sandbox)
+
+    async def _drain_stderr(self) -> None:
+        if not self._modal_proc:
+            return
+        try:
+            async for chunk in self._modal_proc.stderr:
+                if isinstance(chunk, bytes):
+                    chunk = chunk.decode(errors="replace")
+                self._stderr_chunks.append(chunk)
+        except Exception as e:
+            logger.debug("Modal stderr drain failed: %s", e)
+
+    async def start(
+        self,
+        command: str,
+        env: dict[str, str] | None = None,
+        cwd: str | None = None,
+    ) -> None:
+        self._modal_proc = await self._sandbox.exec.aio(
+            "bash",
+            "-lc",
+            command,
+            workdir=cwd,
+            env=env,
+            text=True,
+        )
+        self._stdout_iter = self._modal_proc.stdout.__aiter__()
+        self._stderr_task = asyncio.create_task(self._drain_stderr())
+        logger.info("Modal process started")
+
+    async def readline(self) -> bytes:
+        if self._closed or not self._modal_proc or not self._stdout_iter:
+            raise RuntimeError("Process not started")
+
+        while b"\n" not in self._stdout_buffer:
+            try:
+                chunk = await self._stdout_iter.__anext__()
+            except StopAsyncIteration as e:
+                rc = await self._modal_proc.poll()
+                stderr_text = "".join(self._stderr_chunks).strip()
+                msg = f"Modal process closed stdout (rc={rc})"
+                if stderr_text:
+                    msg += f"\nstderr: {stderr_text[:_DIAG_TRUNCATE]}"
+                raise ConnectionError(msg) from e
+            if isinstance(chunk, str):
+                chunk = chunk.encode()
+            self._stdout_buffer += chunk
+
+        line, self._stdout_buffer = self._stdout_buffer.split(b"\n", 1)
+        return line + b"\n"
+
+    async def writeline(self, data: str) -> None:
+        if self._closed or not self._modal_proc:
+            raise RuntimeError("Process not started")
+        self._modal_proc.stdin.write(data + "\n")
+        await self._modal_proc.stdin.drain()
+
+    async def close(self) -> None:
+        self._closed = True
+        if self._modal_proc:
+            with contextlib.suppress(Exception):
+                self._modal_proc.stdin.write_eof()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(self._modal_proc.wait(), timeout=5)
+        if self._stderr_task:
+            self._stderr_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await self._stderr_task
+        logger.info("Modal process terminated")
+
+    @property
+    def is_running(self) -> bool:
+        return self._modal_proc is not None and not self._closed
+
+
 class DaytonaProcess(LiveProcess):
     """Live stdin/stdout via SSH to a Daytona sandbox.
 
@@ -284,8 +378,8 @@ class DaytonaProcess(LiveProcess):
         self._compose_cmd_base = compose_cmd_base
 
     @classmethod
-    async def from_harbor_env(cls, env: Any) -> "DaytonaProcess":
-        """Create from a Harbor DaytonaEnvironment."""
+    async def from_daytona_environment(cls, env: Any) -> "DaytonaProcess":
+        """Create from a Daytona-compatible environment."""
         sandbox = env._sandbox
         if not sandbox:
             raise RuntimeError("Daytona sandbox not started")
@@ -435,7 +529,7 @@ class DaytonaPtyProcess(LiveProcess):
         self._closed = False
 
     @classmethod
-    async def from_harbor_env(cls, env: Any) -> "DaytonaPtyProcess":
+    async def from_daytona_environment(cls, env: Any) -> "DaytonaPtyProcess":
         sandbox = env._sandbox
         if not sandbox:
             raise RuntimeError("Daytona sandbox not started")

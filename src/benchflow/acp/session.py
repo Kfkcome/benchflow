@@ -1,7 +1,9 @@
 """ACP session lifecycle management."""
 
 import logging
+from collections import defaultdict
 from datetime import datetime
+from typing import Any
 
 from .types import (
     AgentCapabilities,
@@ -11,6 +13,87 @@ from .types import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _number(value: Any) -> float | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _int_field(source: dict[str, Any], *names: str) -> int:
+    for name in names:
+        value = _number(source.get(name))
+        if value is not None:
+            return int(value)
+    return 0
+
+
+def _cost_field(source: dict[str, Any]) -> float | None:
+    for name in ("total_cost_usd", "cost_usd", "estimated_cost_usd"):
+        value = _number(source.get(name))
+        if value is not None:
+            return value
+    cost = source.get("cost")
+    return _number(cost)
+
+
+def _usage_payload(payload: dict[str, Any]) -> tuple[dict[str, int], float | None]:
+    usage = payload.get("usage") or payload.get("tokenUsage") or payload.get(
+        "token_usage"
+    )
+    source = usage if isinstance(usage, dict) else payload
+    normalized = {
+        "input_tokens": _int_field(
+            source,
+            "input_tokens",
+            "inputTokens",
+            "prompt_tokens",
+            "promptTokens",
+        ),
+        "output_tokens": _int_field(
+            source,
+            "output_tokens",
+            "outputTokens",
+            "completion_tokens",
+            "completionTokens",
+        ),
+        "cache_read_tokens": _int_field(
+            source,
+            "cache_read_tokens",
+            "cacheReadTokens",
+            "cache_read_input_tokens",
+            "cacheRead",
+        ),
+        "cache_write_tokens": _int_field(
+            source,
+            "cache_write_tokens",
+            "cacheWriteTokens",
+            "cache_creation_input_tokens",
+            "cacheWrite",
+        ),
+        "reasoning_tokens": _int_field(
+            source,
+            "reasoning_tokens",
+            "reasoningTokens",
+        ),
+    }
+    total = _int_field(source, "total_tokens", "totalTokens")
+    if not total:
+        total = sum(normalized.values())
+    normalized["total_tokens"] = total
+    normalized = {key: value for key, value in normalized.items() if value}
+    cost = _cost_field(source)
+    if cost is None:
+        cost = _cost_field(payload)
+    return normalized, cost
 
 
 class ToolCallRecord:
@@ -69,6 +152,9 @@ class ACPSession:
         self.events: list[dict] = []
         self._pending_text: list[dict] = []
         self._events_active: bool = False
+        self.usage_events: list[dict] = []
+        self.token_usage: defaultdict[str, int] = defaultdict(int)
+        self.total_cost_usd: float = 0.0
 
     def record_user_prompt(self, text: str) -> None:
         """Record a user prompt. Call before sending each ACP prompt."""
@@ -157,6 +243,32 @@ class ACPSession:
                 text = content.get("text", "")
                 self.thought_chunks.append(text)
                 self._pending_text.append({"type": "agent_thought", "text": text})
+
+        self.record_usage(update)
+
+    def record_usage(self, payload: dict[str, Any] | None) -> None:
+        """Record token/cost usage from an ACP result or update payload."""
+        if not isinstance(payload, dict):
+            return
+        usage, cost = _usage_payload(payload)
+        if not usage and cost is None:
+            return
+
+        self._events_active = True
+        self._flush_agent_text()
+        event: dict[str, Any] = {"type": "usage", "usage": usage}
+        if cost is not None:
+            event["total_cost_usd"] = cost
+        self.events.append(event)
+        self.usage_events.append(event.copy())
+        for key, value in usage.items():
+            self.token_usage[key] += value
+        if cost is not None:
+            self.total_cost_usd += cost
+
+    def usage_summary(self) -> dict[str, int]:
+        """Aggregate token usage observed in this session."""
+        return dict(self.token_usage)
 
     @property
     def full_message(self) -> str:

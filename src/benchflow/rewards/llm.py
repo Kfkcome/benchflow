@@ -157,7 +157,7 @@ async def _call_anthropic(model: str, prompt: str, max_tokens: int) -> str:
 
 
 async def _call_openai(model: str, prompt: str, max_tokens: int) -> str:
-    import openai
+    import openai  # ty: ignore[unresolved-import]
 
     client = openai.AsyncOpenAI()
     response = await client.chat.completions.create(
